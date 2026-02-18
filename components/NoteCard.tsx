@@ -1,0 +1,56 @@
+import Link from 'next/link';
+import { Note } from '@/types/note';
+
+interface NoteCardProps {
+  note: Note;
+}
+
+function formatDate(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function formatTime(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
+export default function NoteCard({ note }: NoteCardProps) {
+  const preview = note.content.length > 120 ? note.content.slice(0, 120) + '…' : note.content;
+
+  return (
+    <Link href={`/notes/${note.id}`} className="card block p-4 hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between gap-2">
+        <h2 className="font-semibold text-gray-900 line-clamp-1">{note.title}</h2>
+        {note.sentToChat && (
+          <span className="shrink-0 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+            Sent
+          </span>
+        )}
+      </div>
+
+      <p className="mt-1 text-sm text-gray-600 line-clamp-2">{preview}</p>
+
+      {note.location && (
+        <p className="mt-2 text-xs text-gray-500 flex items-center gap-1">
+          <span>📍</span>
+          <span className="truncate">{note.location}</span>
+        </p>
+      )}
+
+      {note.tags.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {note.tags.map((tag) => (
+            <span key={tag} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <p className="mt-2 text-xs text-gray-400">
+        {formatDate(note.createdAt)} · {formatTime(note.createdAt)}
+      </p>
+    </Link>
+  );
+}

@@ -5,7 +5,8 @@
       "Bash(tree:*)",
       "Bash(sed:*)",
       "Bash(nul)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(npm install)"
     ],
     "deny": [],
     "ask": []
