@@ -130,10 +130,11 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
           id="title"
           className="input"
           type="text"
-          placeholder="Brief description of your observation"
+          placeholder="location, job#, floor, building"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           maxLength={200}
+          suppressHydrationWarning
         />
       </div>
 
@@ -143,9 +144,10 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
         <textarea
           id="content"
           className="input min-h-[160px] resize-y"
-          placeholder="Describe what you observed…"
+          placeholder="Description and materials used"
           value={content}
           onChange={(e) => setContent(e.target.value)}
+          suppressHydrationWarning
         />
         {speechSupported && (
           <button
@@ -177,10 +179,10 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
 
       {/* Actions */}
       <div className="flex gap-3 pt-2">
-        <button type="submit" className="btn-primary flex-1" disabled={saving}>
+        <button type="submit" className="btn-primary flex-1" disabled={saving} suppressHydrationWarning>
           {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Note'}
         </button>
-        <button type="button" className="btn-secondary" onClick={() => router.back()}>
+        <button type="button" className="btn-secondary" onClick={() => router.back()} suppressHydrationWarning>
           Cancel
         </button>
       </div>
@@ -193,9 +195,9 @@ function MicIcon() {
     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
       stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
       aria-hidden="true">
-      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-      <line x1="12" y1="19" x2="12" y2="22"/>
+      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <line x1="12" y1="19" x2="12" y2="22" />
     </svg>
   );
 }
@@ -205,10 +207,10 @@ function MicOffIcon() {
     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
       stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
       aria-hidden="true">
-      <rect x="9" y="2" width="6" height="10" rx="3"/>
-      <line x1="9" y1="9" x2="15" y2="15"/>
-      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-      <line x1="12" y1="19" x2="12" y2="22"/>
+      <rect x="9" y="2" width="6" height="10" rx="3" />
+      <line x1="9" y1="9" x2="15" y2="15" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <line x1="12" y1="19" x2="12" y2="22" />
     </svg>
   );
 }

@@ -5,6 +5,10 @@ export const metadata: Metadata = {
   title: 'Field Notes',
   description: 'Mobile field note-taking assistant',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/icons/hard-hat.svg',
+    apple: '/icons/icon-192.svg',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
