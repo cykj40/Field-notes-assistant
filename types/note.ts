@@ -1,7 +1,7 @@
 export interface Note {
   id: string;
-  title: string;
-  content: string;
+  title?: string;
+  content?: string;
   location?: string;
   tags: string[];
   createdAt: string;
@@ -10,8 +10,8 @@ export interface Note {
 }
 
 export type CreateNoteInput = {
-  title: string;
-  content: string;
+  title?: string;
+  content?: string;
   location?: string;
   tags: string[];
 };

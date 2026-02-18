@@ -31,7 +31,7 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
             <Link href="/" className="text-green-200 hover:text-white transition-colors text-sm shrink-0">
               ← Back
             </Link>
-            <h1 className="text-lg font-bold truncate">{note.title}</h1>
+            <h1 className="text-lg font-bold truncate">{note.title ?? <span className="italic opacity-70">Untitled</span>}</h1>
           </div>
           {note.sentToChat && (
             <span className="shrink-0 text-xs bg-green-500 text-white px-2 py-0.5 rounded-full font-medium">

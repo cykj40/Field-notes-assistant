@@ -2,12 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getNotes, createNote } from '@/lib/storage';
 
-const CreateNoteSchema = z.object({
-  title: z.string().min(1, 'Title is required').max(200),
-  content: z.string().min(1, 'Content is required'),
-  location: z.string().optional(),
-  tags: z.array(z.string()).default([]),
-});
+const CreateNoteSchema = z
+  .object({
+    title: z.string().max(200).optional(),
+    content: z.string().optional(),
+    location: z.string().optional(),
+    tags: z.array(z.string()).default([]),
+  })
+  .refine((d) => (d.title?.trim() ?? '') !== '' || (d.content?.trim() ?? '') !== '', {
+    message: 'At least a title or notes content is required.',
+  });
 
 export async function GET() {
   const notes = getNotes();

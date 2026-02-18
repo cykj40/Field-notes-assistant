@@ -16,12 +16,13 @@ function formatTime(iso: string) {
 }
 
 export default function NoteCard({ note }: NoteCardProps) {
-  const preview = note.content.length > 120 ? note.content.slice(0, 120) + '…' : note.content;
+  const raw = note.content ?? '';
+  const preview = raw.length > 120 ? raw.slice(0, 120) + '…' : raw;
 
   return (
     <Link href={`/notes/${note.id}`} className="card block p-4 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-2">
-        <h2 className="font-semibold text-gray-900 line-clamp-1">{note.title}</h2>
+        <h2 className="font-semibold text-gray-900 line-clamp-1">{note.title ?? <span className="italic text-gray-400">Untitled</span>}</h2>
         {note.sentToChat && (
           <span className="shrink-0 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
             Sent

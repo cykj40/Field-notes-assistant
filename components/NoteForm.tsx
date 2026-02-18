@@ -74,8 +74,10 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       e.preventDefault();
       setError('');
 
-      if (!title.trim()) { setError('Title is required.'); return; }
-      if (!content.trim()) { setError('Content is required.'); return; }
+      if (!title.trim() && !content.trim()) {
+        setError('Please fill in at least a title or some notes.');
+        return;
+      }
 
       if (recording) {
         recognitionRef.current?.stop();
@@ -132,7 +134,6 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           maxLength={200}
-          required
         />
       </div>
 
@@ -145,7 +146,6 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
           placeholder="Describe what you observed…"
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          required
         />
         {speechSupported && (
           <button
