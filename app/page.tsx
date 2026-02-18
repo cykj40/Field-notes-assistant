@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getNotes } from '@/lib/storage';
 import NoteCard from '@/components/NoteCard';
 
+
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
