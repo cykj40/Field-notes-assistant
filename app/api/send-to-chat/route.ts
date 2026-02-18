@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getNoteById, updateNote } from '@/lib/storage';
+import { requireApiKey } from '@/lib/apiKey';
 
-function formatNoteForChat(note: { title: string; content: string; location?: string; tags: string[]; createdAt: string }): string {
+function formatNoteForChat(note: { title?: string; content?: string; location?: string; tags: string[]; createdAt: string }): string {
   const lines: string[] = [
-    `*📋 Field Note: ${note.title}*`,
+    `*📋 Field Note: ${note.title ?? 'Untitled'}*`,
     '',
-    note.content,
+    note.content ?? '',
   ];
 
   if (note.location) {
@@ -23,6 +24,9 @@ function formatNoteForChat(note: { title: string; content: string; location?: st
 }
 
 export async function POST(req: NextRequest) {
+  const denied = requireApiKey(req);
+  if (denied) return denied;
+
   const webhookUrl = process.env.GOOGLE_CHAT_WEBHOOK_URL;
   if (!webhookUrl) {
     return NextResponse.json({ error: 'Google Chat webhook not configured' }, { status: 500 });

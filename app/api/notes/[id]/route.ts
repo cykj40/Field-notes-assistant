@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getNoteById, updateNote, deleteNote } from '@/lib/storage';
+import { requireApiKey } from '@/lib/apiKey';
 
 const UpdateNoteSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -18,6 +19,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = requireApiKey(req);
+  if (denied) return denied;
+
   const { id } = await params;
   const body = await req.json();
   const parsed = UpdateNoteSchema.safeParse(body);
@@ -31,7 +35,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   return NextResponse.json(updated);
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = requireApiKey(req);
+  if (denied) return denied;
+
   const { id } = await params;
   const deleted = deleteNote(id);
   if (!deleted) return NextResponse.json({ error: 'Note not found' }, { status: 404 });

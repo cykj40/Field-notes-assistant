@@ -96,7 +96,10 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
 
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.NEXT_PUBLIC_FIELD_NOTES_API_KEY ?? '',
+        },
         body: JSON.stringify(body),
       });
 

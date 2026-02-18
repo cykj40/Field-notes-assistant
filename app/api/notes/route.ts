@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getNotes, createNote } from '@/lib/storage';
+import { requireApiKey } from '@/lib/apiKey';
 
 const CreateNoteSchema = z
   .object({
@@ -19,6 +20,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = requireApiKey(req);
+  if (denied) return denied;
+
   const body = await req.json();
   const parsed = CreateNoteSchema.safeParse(body);
 
