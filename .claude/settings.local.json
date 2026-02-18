@@ -6,7 +6,8 @@
       "Bash(sed:*)",
       "Bash(nul)",
       "WebFetch(domain:github.com)",
-      "Bash(npm install)"
+      "Bash(npm install)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

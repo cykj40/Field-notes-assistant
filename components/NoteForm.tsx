@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Note, CreateNoteInput } from '@/types/note';
 
@@ -15,43 +15,59 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
 
   const [title, setTitle] = useState(initialData?.title ?? '');
   const [content, setContent] = useState(initialData?.content ?? '');
-  const [location, setLocation] = useState(initialData?.location ?? '');
-  const [tagInput, setTagInput] = useState('');
-  const [tags, setTags] = useState<string[]>(initialData?.tags ?? []);
   const [saving, setSaving] = useState(false);
-  const [geoLoading, setGeoLoading] = useState(false);
   const [error, setError] = useState('');
+  const [recording, setRecording] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
 
-  const addTag = useCallback(() => {
-    const trimmed = tagInput.trim();
-    if (trimmed && !tags.includes(trimmed)) {
-      setTags((prev) => [...prev, trimmed]);
-    }
-    setTagInput('');
-  }, [tagInput, tags]);
-
-  const removeTag = useCallback((tag: string) => {
-    setTags((prev) => prev.filter((t) => t !== tag));
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    setSpeechSupported(!!SR);
   }, []);
 
-  const getLocation = useCallback(() => {
-    if (!navigator.geolocation) {
-      setError('Geolocation is not supported by your browser.');
+  const toggleRecording = useCallback(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+
+    if (recording) {
+      recognitionRef.current?.stop();
       return;
     }
-    setGeoLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        setLocation(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
-        setGeoLoading(false);
-      },
-      () => {
-        setError('Unable to retrieve your location.');
-        setGeoLoading(false);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const recognition = new SR() as any;
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.continuous = true;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results as ArrayLike<SpeechRecognitionResult>)
+        .slice(event.resultIndex)
+        .filter((r) => r.isFinal)
+        .map((r) => r[0].transcript)
+        .join(' ');
+      if (transcript) {
+        setContent((prev) => (prev ? prev + ' ' + transcript : transcript));
       }
-    );
-  }, []);
+    };
+
+    recognition.onerror = () => {
+      setRecording(false);
+    };
+
+    recognition.onend = () => {
+      setRecording(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setRecording(true);
+  }, [recording]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -61,12 +77,16 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       if (!title.trim()) { setError('Title is required.'); return; }
       if (!content.trim()) { setError('Content is required.'); return; }
 
+      if (recording) {
+        recognitionRef.current?.stop();
+      }
+
       setSaving(true);
       const body: CreateNoteInput = {
         title: title.trim(),
         content: content.trim(),
-        location: location.trim() || undefined,
-        tags,
+        location: undefined,
+        tags: [],
       };
 
       const url = isEdit ? `/api/notes/${noteId}` : '/api/notes';
@@ -90,7 +110,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       router.push(`/notes/${saved.id}`);
       router.refresh();
     },
-    [title, content, location, tags, isEdit, noteId, router]
+    [title, content, recording, isEdit, noteId, router]
   );
 
   return (
@@ -116,7 +136,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
         />
       </div>
 
-      {/* Content */}
+      {/* Notes + voice dictation */}
       <div>
         <label className="label" htmlFor="content">Notes</label>
         <textarea
@@ -127,68 +147,31 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
           onChange={(e) => setContent(e.target.value)}
           required
         />
-      </div>
-
-      {/* Location */}
-      <div>
-        <label className="label" htmlFor="location">Location</label>
-        <div className="flex gap-2">
-          <input
-            id="location"
-            className="input flex-1"
-            type="text"
-            placeholder="e.g. Site A, or GPS coordinates"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-          />
+        {speechSupported && (
           <button
             type="button"
-            className="btn-secondary shrink-0"
-            onClick={getLocation}
-            disabled={geoLoading}
+            onClick={toggleRecording}
+            aria-label={recording ? 'Stop recording' : 'Start voice dictation'}
+            className={[
+              'mt-2 flex w-full items-center justify-center gap-2 rounded-lg',
+              'min-h-[48px] text-sm font-semibold transition-colors',
+              recording
+                ? 'animate-pulse bg-red-600 text-white hover:bg-red-700 active:bg-red-800'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300',
+            ].join(' ')}
           >
-            {geoLoading ? '…' : '📍 GPS'}
+            {recording ? (
+              <>
+                <MicOffIcon />
+                Stop Recording
+              </>
+            ) : (
+              <>
+                <MicIcon />
+                Dictate
+              </>
+            )}
           </button>
-        </div>
-      </div>
-
-      {/* Tags */}
-      <div>
-        <label className="label">Tags</label>
-        <div className="flex gap-2">
-          <input
-            className="input flex-1"
-            type="text"
-            placeholder="Add a tag and press Enter"
-            value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') { e.preventDefault(); addTag(); }
-            }}
-          />
-          <button type="button" className="btn-secondary shrink-0" onClick={addTag}>
-            Add
-          </button>
-        </div>
-        {tags.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {tags.map((tag) => (
-              <span
-                key={tag}
-                className="flex items-center gap-1 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full"
-              >
-                {tag}
-                <button
-                  type="button"
-                  className="hover:text-red-600 transition-colors"
-                  onClick={() => removeTag(tag)}
-                  aria-label={`Remove tag ${tag}`}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
         )}
       </div>
 
@@ -202,5 +185,30 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
         </button>
       </div>
     </form>
+  );
+}
+
+function MicIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+      <line x1="12" y1="19" x2="12" y2="22"/>
+    </svg>
+  );
+}
+
+function MicOffIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      <rect x="9" y="2" width="6" height="10" rx="3"/>
+      <line x1="9" y1="9" x2="15" y2="15"/>
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+      <line x1="12" y1="19" x2="12" y2="22"/>
+    </svg>
   );
 }
