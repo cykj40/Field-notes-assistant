@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'noteId is required' }, { status: 400 });
   }
 
-  const note = getNoteById(noteId);
+  const note = await getNoteById(noteId);
   if (!note) {
     return NextResponse.json({ error: 'Note not found' }, { status: 404 });
   }
@@ -55,6 +55,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Google Chat error: ${error}` }, { status: 502 });
   }
 
-  const updated = updateNote(noteId, { sentToChat: true });
+  const updated = await updateNote(noteId, { sentToChat: true });
   return NextResponse.json({ success: true, note: updated });
 }

@@ -4,8 +4,8 @@ import NoteCard from '@/components/NoteCard';
 
 export const dynamic = 'force-dynamic';
 
-export default function HomePage() {
-  const notes = getNotes();
+export default async function HomePage() {
+  const notes = await getNotes();
 
   return (
     <div className="min-h-screen flex flex-col">

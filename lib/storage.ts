@@ -1,31 +1,29 @@
-import fs from 'fs';
-import path from 'path';
+import { Redis } from '@upstash/redis';
 import { Note, CreateNoteInput, UpdateNoteInput } from '@/types/note';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const NOTES_FILE = path.join(DATA_DIR, 'notes.json');
+const redis = Redis.fromEnv();
+const NOTES_KEY = 'field:notes';
 
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-  if (!fs.existsSync(NOTES_FILE)) {
-    fs.writeFileSync(NOTES_FILE, JSON.stringify([], null, 2));
-  }
+async function readNotes(): Promise<Note[]> {
+  const notes = await redis.get<Note[]>(NOTES_KEY);
+  return notes ?? [];
 }
 
-export function getNotes(): Note[] {
-  ensureDataDir();
-  const data = fs.readFileSync(NOTES_FILE, 'utf-8');
-  return JSON.parse(data) as Note[];
+async function writeNotes(notes: Note[]): Promise<void> {
+  await redis.set(NOTES_KEY, notes);
 }
 
-export function getNoteById(id: string): Note | undefined {
-  return getNotes().find((n) => n.id === id);
+export async function getNotes(): Promise<Note[]> {
+  return readNotes();
 }
 
-export function createNote(input: CreateNoteInput): Note {
-  const notes = getNotes();
+export async function getNoteById(id: string): Promise<Note | undefined> {
+  const notes = await readNotes();
+  return notes.find((n) => n.id === id);
+}
+
+export async function createNote(input: CreateNoteInput): Promise<Note> {
+  const notes = await readNotes();
   const now = new Date().toISOString();
   const newNote: Note = {
     id: crypto.randomUUID(),
@@ -38,12 +36,15 @@ export function createNote(input: CreateNoteInput): Note {
     sentToChat: false,
   };
   notes.unshift(newNote);
-  fs.writeFileSync(NOTES_FILE, JSON.stringify(notes, null, 2));
+  await writeNotes(notes);
   return newNote;
 }
 
-export function updateNote(id: string, input: UpdateNoteInput & { sentToChat?: boolean }): Note | null {
-  const notes = getNotes();
+export async function updateNote(
+  id: string,
+  input: UpdateNoteInput & { sentToChat?: boolean },
+): Promise<Note | null> {
+  const notes = await readNotes();
   const idx = notes.findIndex((n) => n.id === id);
   if (idx === -1) return null;
   notes[idx] = {
@@ -52,14 +53,14 @@ export function updateNote(id: string, input: UpdateNoteInput & { sentToChat?: b
     id,
     updatedAt: new Date().toISOString(),
   };
-  fs.writeFileSync(NOTES_FILE, JSON.stringify(notes, null, 2));
+  await writeNotes(notes);
   return notes[idx];
 }
 
-export function deleteNote(id: string): boolean {
-  const notes = getNotes();
+export async function deleteNote(id: string): Promise<boolean> {
+  const notes = await readNotes();
   const filtered = notes.filter((n) => n.id !== id);
   if (filtered.length === notes.length) return false;
-  fs.writeFileSync(NOTES_FILE, JSON.stringify(filtered, null, 2));
+  await writeNotes(filtered);
   return true;
 }

@@ -11,9 +11,12 @@ const UpdateNoteSchema = z.object({
   sentToChat: z.boolean().optional(),
 });
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = requireApiKey(req);
+  if (denied) return denied;
+
   const { id } = await params;
-  const note = getNoteById(id);
+  const note = await getNoteById(id);
   if (!note) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
   return NextResponse.json(note);
 }
@@ -30,7 +33,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const updated = updateNote(id, parsed.data);
+  const updated = await updateNote(id, parsed.data);
   if (!updated) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
   return NextResponse.json(updated);
 }
@@ -40,7 +43,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (denied) return denied;
 
   const { id } = await params;
-  const deleted = deleteNote(id);
+  const deleted = await deleteNote(id);
   if (!deleted) return NextResponse.json({ error: 'Note not found' }, { status: 404 });
   return NextResponse.json({ success: true });
 }

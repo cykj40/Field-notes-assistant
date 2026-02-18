@@ -19,7 +19,7 @@ function formatDateTime(iso: string) {
 
 export default async function NoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const note = getNoteById(id);
+  const note = await getNoteById(id);
   if (!note) notFound();
 
   return (

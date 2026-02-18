@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function EditNotePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const note = getNoteById(id);
+  const note = await getNoteById(id);
   if (!note) notFound();
 
   return (

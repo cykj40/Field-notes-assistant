@@ -14,8 +14,11 @@ const CreateNoteSchema = z
     message: 'At least a title or notes content is required.',
   });
 
-export async function GET() {
-  const notes = getNotes();
+export async function GET(req: NextRequest) {
+  const denied = requireApiKey(req);
+  if (denied) return denied;
+
+  const notes = await getNotes();
   return NextResponse.json(notes);
 }
 
@@ -30,6 +33,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const note = createNote(parsed.data);
+  const note = await createNote(parsed.data);
   return NextResponse.json(note, { status: 201 });
 }
