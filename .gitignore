@@ -44,3 +44,10 @@ public/workbox-*.js.map
 # uploads
 public/uploads/*
 !public/uploads/.gitkeep
+
+# field notes data — never commit real notes to the repo
+/data/
+data/notes.json
+
+# Claude Code local settings
+.claude/
