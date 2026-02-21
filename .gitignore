@@ -51,3 +51,7 @@ data/notes.json
 
 # Claude Code local settings
 .claude/
+
+
+playwright-report/
+test-results/

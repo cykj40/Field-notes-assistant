@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit --pretty"
+    "typecheck": "tsc --noEmit --pretty",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug"
   },
   "dependencies": {
     "@upstash/redis": "^1.36.2",
@@ -18,6 +21,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
