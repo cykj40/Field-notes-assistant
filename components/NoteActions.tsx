@@ -23,7 +23,7 @@ export default function NoteActions({ note }: NoteActionsProps) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.NEXT_PUBLIC_FIELD_NOTES_API_KEY ?? '',
+        'x-api-key': process.env['NEXT_PUBLIC_FIELD_NOTES_API_KEY'] ?? '',
       },
       body: JSON.stringify({ noteId: note.id }),
     });
@@ -42,7 +42,7 @@ export default function NoteActions({ note }: NoteActionsProps) {
     setDeleting(true);
     const res = await fetch(`/api/notes/${note.id}`, {
       method: 'DELETE',
-      headers: { 'x-api-key': process.env.NEXT_PUBLIC_FIELD_NOTES_API_KEY ?? '' },
+      headers: { 'x-api-key': process.env['NEXT_PUBLIC_FIELD_NOTES_API_KEY'] ?? '' },
     });
     if (res.ok) {
       router.push('/');

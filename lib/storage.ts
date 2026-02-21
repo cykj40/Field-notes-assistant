@@ -27,13 +27,14 @@ export async function createNote(input: CreateNoteInput): Promise<Note> {
   const now = new Date().toISOString();
   const newNote: Note = {
     id: crypto.randomUUID(),
-    title: input.title,
-    content: input.content,
-    location: input.location,
     tags: input.tags,
     createdAt: now,
     updatedAt: now,
     sentToChat: false,
+    ...(input.title ? { title: input.title } : {}),
+    ...(input.content ? { content: input.content } : {}),
+    ...(input.location ? { location: input.location } : {}),
+    ...(input.noteTaker ? { noteTaker: input.noteTaker } : {}),
   };
   notes.unshift(newNote);
   await writeNotes(notes);
@@ -47,14 +48,17 @@ export async function updateNote(
   const notes = await readNotes();
   const idx = notes.findIndex((n) => n.id === id);
   if (idx === -1) return null;
-  notes[idx] = {
-    ...notes[idx],
+  const existingNote = notes[idx];
+  if (!existingNote) return null;
+  const updatedNote: Note = {
+    ...existingNote,
     ...input,
     id,
     updatedAt: new Date().toISOString(),
   };
+  notes[idx] = updatedNote;
   await writeNotes(notes);
-  return notes[idx];
+  return updatedNote;
 }
 
 export async function deleteNote(id: string): Promise<boolean> {

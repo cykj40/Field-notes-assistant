@@ -3,10 +3,48 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Note, CreateNoteInput } from '@/types/note';
+import { NOTE_TAKERS, NoteTaker } from '@/lib/noteTakers';
 
 interface NoteFormProps {
   initialData?: Partial<Note>;
   noteId?: string;
+}
+
+interface SpeechRecognitionAlternativeLike {
+  transcript: string;
+}
+
+interface SpeechRecognitionResultLike {
+  isFinal: boolean;
+  0?: SpeechRecognitionAlternativeLike;
+}
+
+interface SpeechRecognitionEventLike {
+  resultIndex: number;
+  results: ArrayLike<SpeechRecognitionResultLike>;
+}
+
+interface SpeechRecognitionLike {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
+
+type WindowWithSpeechRecognition = Window & {
+  SpeechRecognition?: SpeechRecognitionCtor;
+  webkitSpeechRecognition?: SpeechRecognitionCtor;
+};
+
+function getSpeechRecognitionCtor(): SpeechRecognitionCtor | undefined {
+  const w = window as WindowWithSpeechRecognition;
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition;
 }
 
 export default function NoteForm({ initialData, noteId }: NoteFormProps) {
@@ -15,22 +53,20 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
 
   const [title, setTitle] = useState(initialData?.title ?? '');
   const [content, setContent] = useState(initialData?.content ?? '');
+  const [noteTaker, setNoteTaker] = useState<NoteTaker | ''>(initialData?.noteTaker ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [recording, setRecording] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SR = getSpeechRecognitionCtor();
     setSpeechSupported(!!SR);
   }, []);
 
   const toggleRecording = useCallback(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SR = getSpeechRecognitionCtor();
     if (!SR) return;
 
     if (recording) {
@@ -38,18 +74,17 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       return;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const recognition = new SR() as any;
+    const recognition = new SR();
     recognition.lang = 'en-US';
     recognition.interimResults = false;
     recognition.continuous = true;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    recognition.onresult = (event: any) => {
-      const transcript = Array.from(event.results as ArrayLike<SpeechRecognitionResult>)
+    recognition.onresult = (event: SpeechRecognitionEventLike) => {
+      const transcript = Array.from(event.results)
         .slice(event.resultIndex)
         .filter((r) => r.isFinal)
-        .map((r) => r[0].transcript)
+        .map((r) => r[0]?.transcript ?? '')
+        .filter(Boolean)
         .join(' ');
       if (transcript) {
         setContent((prev) => (prev ? prev + ' ' + transcript : transcript));
@@ -87,8 +122,8 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       const body: CreateNoteInput = {
         title: title.trim(),
         content: content.trim(),
-        location: undefined,
         tags: [],
+        ...(noteTaker ? { noteTaker } : {}),
       };
 
       const url = isEdit ? `/api/notes/${noteId}` : '/api/notes';
@@ -98,7 +133,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
         method,
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': process.env.NEXT_PUBLIC_FIELD_NOTES_API_KEY ?? '',
+          'x-api-key': process.env['NEXT_PUBLIC_FIELD_NOTES_API_KEY'] ?? '',
         },
         body: JSON.stringify(body),
       });
@@ -115,7 +150,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       router.push(`/notes/${saved.id}`);
       router.refresh();
     },
-    [title, content, recording, isEdit, noteId, router]
+    [title, content, noteTaker, recording, isEdit, noteId, router]
   );
 
   return (
@@ -178,6 +213,24 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
             )}
           </button>
         )}
+      </div>
+
+      <div>
+        <label className="label" htmlFor="noteTaker">Note Taker</label>
+        <select
+          id="noteTaker"
+          className="input"
+          value={noteTaker}
+          onChange={(e) => setNoteTaker(e.target.value as NoteTaker | '')}
+          suppressHydrationWarning
+        >
+          <option value="">General note</option>
+          {NOTE_TAKERS.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Actions */}

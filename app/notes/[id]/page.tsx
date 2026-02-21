@@ -7,13 +7,15 @@ export const dynamic = 'force-dynamic';
 
 function formatDateTime(iso: string) {
   const d = new Date(iso);
-  return d.toLocaleString(undefined, {
+  return d.toLocaleString('en-US', {
     weekday: 'short',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'America/New_York',
+    timeZoneName: 'short',
   });
 }
 
@@ -44,6 +46,7 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
       <main className="flex-1 mx-auto w-full max-w-2xl px-4 py-6 space-y-6">
         {/* Meta */}
         <div className="text-xs text-gray-500 space-y-1">
+          <p>Note taker: {note.noteTaker ?? 'General note'}</p>
           <p>Created: {formatDateTime(note.createdAt)}</p>
           {note.updatedAt !== note.createdAt && (
             <p>Updated: {formatDateTime(note.updatedAt)}</p>

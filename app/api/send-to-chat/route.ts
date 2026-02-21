@@ -2,23 +2,45 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getNoteById, updateNote } from '@/lib/storage';
 import { requireApiKey } from '@/lib/apiKey';
 
-function formatNoteForChat(note: { title?: string; content?: string; location?: string; tags: string[]; createdAt: string }): string {
+function formatRecordedDate(iso: string): string {
+  return new Date(iso).toLocaleString('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+    timeZoneName: 'short',
+  });
+}
+
+function formatNoteForChat(note: {
+  title?: string;
+  content?: string;
+  location?: string;
+  tags: string[];
+  noteTaker?: string;
+  createdAt: string;
+}): string {
   const lines: string[] = [
-    `*📋 Field Note: ${note.title ?? 'Untitled'}*`,
+    `*Field Note: ${note.title ?? 'Untitled'}*`,
     '',
     note.content ?? '',
+    '',
+    `Recorded by: ${note.noteTaker ?? 'General note'}`,
   ];
 
   if (note.location) {
-    lines.push('', `📍 *Location:* ${note.location}`);
+    lines.push('', `Location: ${note.location}`);
   }
 
   if (note.tags.length > 0) {
-    lines.push(`🏷️ *Tags:* ${note.tags.join(', ')}`);
+    lines.push('', `Tags: ${note.tags.join(', ')}`);
   }
 
-  const date = new Date(note.createdAt).toLocaleString();
-  lines.push('', `🕐 *Recorded:* ${date}`);
+  lines.push('', `Recorded: ${formatRecordedDate(note.createdAt)}`);
 
   return lines.join('\n');
 }
@@ -27,7 +49,7 @@ export async function POST(req: NextRequest) {
   const denied = requireApiKey(req);
   if (denied) return denied;
 
-  const webhookUrl = process.env.GOOGLE_CHAT_WEBHOOK_URL;
+  const webhookUrl = process.env['GOOGLE_CHAT_WEBHOOK_URL'];
   if (!webhookUrl) {
     return NextResponse.json({ error: 'Google Chat webhook not configured' }, { status: 500 });
   }

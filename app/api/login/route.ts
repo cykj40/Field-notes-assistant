@@ -11,7 +11,7 @@ function safeCompare(a: string, b: string): boolean {
 
 export async function POST(req: NextRequest) {
   const { password } = await req.json();
-  const secret = process.env.FIELD_AUTH_SECRET;
+  const secret = process.env['FIELD_AUTH_SECRET'];
 
   if (!secret || !safeCompare(password ?? '', secret)) {
     return NextResponse.json({ error: 'Invalid password' }, { status: 401 });

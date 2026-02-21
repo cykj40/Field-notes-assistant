@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  const secret = process.env.FIELD_AUTH_SECRET;
+  const secret = process.env['FIELD_AUTH_SECRET'];
 
   // If auth is not configured (e.g. local dev without env vars), allow through
   if (!secret) return NextResponse.next();
