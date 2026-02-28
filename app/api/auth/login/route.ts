@@ -4,6 +4,24 @@ import { sql, User } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
+  // Guard: Check SESSION_SECRET is set
+  if (!process.env['SESSION_SECRET']) {
+    console.error('FATAL: SESSION_SECRET environment variable is not set');
+    return NextResponse.json(
+      { error: 'Server configuration error: SESSION_SECRET is not set' },
+      { status: 500 }
+    );
+  }
+
+  // Guard: Check DATABASE_URL is set
+  if (!process.env['DATABASE_URL']) {
+    console.error('FATAL: DATABASE_URL environment variable is not set');
+    return NextResponse.json(
+      { error: 'Server configuration error: DATABASE_URL is not set' },
+      { status: 500 }
+    );
+  }
+
   try {
     const { username, password } = await req.json();
 
@@ -63,9 +81,21 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
+    // Log the full error with message and stack trace
     console.error('Login error:', error);
+    console.error('Error message:', error instanceof Error ? error.message : String(error));
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+
+    // Log specific database errors
+    if (error && typeof error === 'object' && 'code' in error) {
+      console.error('Database error code:', error.code);
+    }
+
     return NextResponse.json(
-      { error: 'An error occurred during login' },
+      {
+        error: 'An error occurred during login',
+        details: error instanceof Error ? error.message : String(error)
+      },
       { status: 500 }
     );
   }

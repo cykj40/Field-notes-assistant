@@ -3,7 +3,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Note, CreateNoteInput } from '@/types/note';
-import { NOTE_TAKERS, NoteTaker } from '@/lib/noteTakers';
 
 interface NoteFormProps {
   initialData?: Partial<Note>;
@@ -53,7 +52,6 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
 
   const [title, setTitle] = useState(initialData?.title ?? '');
   const [content, setContent] = useState(initialData?.content ?? '');
-  const [noteTaker, setNoteTaker] = useState<NoteTaker | ''>(initialData?.noteTaker ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [recording, setRecording] = useState(false);
@@ -123,7 +121,6 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
         title: title.trim(),
         content: content.trim(),
         tags: [],
-        ...(noteTaker ? { noteTaker } : {}),
       };
 
       const url = isEdit ? `/api/notes/${noteId}` : '/api/notes';
@@ -150,7 +147,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       router.push(`/notes/${saved.id}`);
       router.refresh();
     },
-    [title, content, noteTaker, recording, isEdit, noteId, router]
+    [title, content, recording, isEdit, noteId, router]
   );
 
   return (
@@ -213,24 +210,6 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
             )}
           </button>
         )}
-      </div>
-
-      <div>
-        <label className="label" htmlFor="noteTaker">Note Taker</label>
-        <select
-          id="noteTaker"
-          className="input"
-          value={noteTaker}
-          onChange={(e) => setNoteTaker(e.target.value as NoteTaker | '')}
-          suppressHydrationWarning
-        >
-          <option value="">General note</option>
-          {NOTE_TAKERS.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
       </div>
 
       {/* Actions */}
