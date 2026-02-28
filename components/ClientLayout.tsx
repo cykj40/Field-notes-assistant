@@ -12,7 +12,7 @@ interface ClientLayoutProps {
   children: ReactNode;
 }
 
-export function ClientLayout({ children }: ClientLayoutProps): JSX.Element {
+export function ClientLayout({ children }: ClientLayoutProps) {
   return (
     <>
       {children}

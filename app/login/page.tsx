@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const router = useRouter();
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -14,17 +15,16 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
 
-    const res = await fetch('/api/login', {
+    const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ username, password }),
     });
 
     setLoading(false);
 
     if (!res.ok) {
-      const data = await res.json();
-      setError(data.error ?? 'Login failed.');
+      setError('Invalid credentials');
       return;
     }
 
@@ -46,7 +46,7 @@ export default function LoginPage() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Field Notes</h1>
-          <p className="text-sm text-gray-500 mt-1">Enter your password to continue</p>
+          <p className="text-sm text-gray-500 mt-1">Sign in to continue</p>
         </div>
 
         {/* Form */}
@@ -58,6 +58,20 @@ export default function LoginPage() {
           )}
 
           <div>
+            <label className="label" htmlFor="username">Username</label>
+            <input
+              id="username"
+              type="text"
+              className="input"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
+              autoFocus
+              required
+            />
+          </div>
+
+          <div>
             <label className="label" htmlFor="password">Password</label>
             <input
               id="password"
@@ -66,7 +80,6 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
-              autoFocus
               required
             />
           </div>

@@ -16,6 +16,8 @@ export function useServiceWorker(): UseServiceWorkerReturn {
       return;
     }
 
+    let intervalId: NodeJS.Timeout | undefined;
+
     const handleUpdateFound = (registration: ServiceWorkerRegistration): void => {
       const installingWorker = registration.installing;
       if (!installingWorker) {
@@ -47,13 +49,9 @@ export function useServiceWorker(): UseServiceWorkerReturn {
         });
 
         // Check for updates periodically (every hour)
-        const intervalId = setInterval(() => {
+        intervalId = setInterval(() => {
           registration.update();
         }, 60 * 60 * 1000);
-
-        return () => {
-          clearInterval(intervalId);
-        };
       } catch (error) {
         console.error('Service worker registration failed:', error);
       }
@@ -69,6 +67,9 @@ export function useServiceWorker(): UseServiceWorkerReturn {
 
     return () => {
       navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
     };
   }, []);
 

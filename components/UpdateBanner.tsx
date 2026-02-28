@@ -2,7 +2,7 @@
 
 import { useServiceWorker } from '@/hooks/useServiceWorker';
 
-export function UpdateBanner(): JSX.Element | null {
+export function UpdateBanner() {
   const { updateAvailable, applyUpdate } = useServiceWorker();
 
   if (!updateAvailable) {

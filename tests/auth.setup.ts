@@ -1,30 +1,15 @@
 import { Page } from '@playwright/test';
 
-export const PASSWORD = 'o6giPTeW0lG39G09';
+export const TEST_USERNAME = 'Cyrus';
+export const TEST_PASSWORD = 'test-password-123';
 
 /**
  * Logs in to the application by visiting the login page and submitting credentials.
  */
 export async function login(page: Page): Promise<void> {
   await page.goto('/login');
-  await page.fill('input[type="password"]', PASSWORD);
+  await page.fill('input#username', TEST_USERNAME);
+  await page.fill('input#password', TEST_PASSWORD);
   await page.click('button[type="submit"]');
   await page.waitForURL('/');
-}
-
-/**
- * Sets the authentication cookie directly without going through the UI.
- */
-export async function setAuthCookie(page: Page): Promise<void> {
-  await page.context().addCookies([
-    {
-      name: 'field-auth',
-      value: PASSWORD,
-      domain: 'localhost',
-      path: '/',
-      httpOnly: true,
-      secure: false,
-      sameSite: 'Strict',
-    },
-  ]);
 }
