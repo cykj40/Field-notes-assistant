@@ -40,7 +40,8 @@ test.describe('Unauthenticated Access', () => {
     await page.goto('/login');
     await expect(page).toHaveURL('/login');
     await expect(page.locator('h1')).toContainText('Field Notes');
-    await expect(page.locator('input[type="password"]')).toBeVisible();
+    await expect(page.locator('input#username')).toBeVisible();
+    await expect(page.locator('input#password')).toBeVisible();
 
     const errors = messages.filter((m) => m.startsWith('[error]'));
     expect(errors, `Console errors found: ${errors.join(', ')}`).toHaveLength(0);
@@ -48,14 +49,15 @@ test.describe('Unauthenticated Access', () => {
 
   test('should show error on invalid login', async ({ page }) => {
     await page.goto('/login');
-    await page.fill('input[type="password"]', 'wrongpassword');
+    await page.fill('input#username', 'Cyrus');
+    await page.fill('input#password', 'wrongpassword');
     await page.click('button[type="submit"]');
 
     // Should still be on login page
     await expect(page).toHaveURL('/login');
 
     // Should show error message
-    await expect(page.locator('text=Invalid password')).toBeVisible();
+    await expect(page.locator('text=Invalid credentials')).toBeVisible();
   });
 
   test('should allow access to static assets', async ({ page }) => {
