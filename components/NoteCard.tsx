@@ -5,23 +5,21 @@ interface NoteCardProps {
   note: Note;
 }
 
-function formatDate(iso: string) {
+function formatDateTime(iso: string) {
   const d = new Date(iso);
-  return d.toLocaleDateString('en-US', {
+  const date = d.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
     timeZone: 'America/New_York',
   });
-}
-
-function formatTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString('en-US', {
-    hour: '2-digit',
+  const time = d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
     minute: '2-digit',
+    hour12: true,
     timeZone: 'America/New_York',
   });
+  return `${date} · ${time}`;
 }
 
 export default function NoteCard({ note }: NoteCardProps) {
@@ -61,7 +59,7 @@ export default function NoteCard({ note }: NoteCardProps) {
       )}
 
       <p className="mt-2 text-xs text-gray-400">
-        {note.noteTaker ?? 'General note'} | {formatDate(note.createdAt)} | {formatTime(note.createdAt)}
+        {note.createdBy ?? 'Unknown'} · {formatDateTime(note.createdAt)}
       </p>
     </Link>
   );

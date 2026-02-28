@@ -46,11 +46,12 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
       <main className="flex-1 mx-auto w-full max-w-2xl px-4 py-6 space-y-6">
         {/* Meta */}
         <div className="text-xs text-gray-500 space-y-1">
-          <p>Note taker: {note.noteTaker ?? 'General note'}</p>
+          {note.createdBy && <p>Created by: {note.createdBy}</p>}
           <p>Created: {formatDateTime(note.createdAt)}</p>
           {note.updatedAt !== note.createdAt && (
             <p>Updated: {formatDateTime(note.updatedAt)}</p>
           )}
+          {note.noteTaker && <p>Note taker: {note.noteTaker}</p>}
         </div>
 
         {/* Location */}

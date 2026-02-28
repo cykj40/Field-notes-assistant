@@ -6,13 +6,11 @@ function formatRecordedDate(iso: string): string {
   return new Date(iso).toLocaleString('en-US', {
     timeZone: 'America/New_York',
     year: 'numeric',
-    month: 'numeric',
+    month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-    second: '2-digit',
     hour12: true,
-    timeZoneName: 'short',
   });
 }
 
@@ -22,15 +20,23 @@ function formatNoteForChat(note: {
   location?: string;
   tags: string[];
   noteTaker?: string;
+  createdBy?: string;
   createdAt: string;
 }): string {
+  const creator = note.createdBy ?? 'Unknown';
+  const timestamp = formatRecordedDate(note.createdAt);
+
   const lines: string[] = [
     `*Field Note: ${note.title ?? 'Untitled'}*`,
     '',
     note.content ?? '',
     '',
-    `Recorded by: ${note.noteTaker ?? 'General note'}`,
+    `${creator} — ${timestamp}`,
   ];
+
+  if (note.noteTaker) {
+    lines.push('', `Note taker: ${note.noteTaker}`);
+  }
 
   if (note.location) {
     lines.push('', `Location: ${note.location}`);
@@ -39,8 +45,6 @@ function formatNoteForChat(note: {
   if (note.tags.length > 0) {
     lines.push('', `Tags: ${note.tags.join(', ')}`);
   }
-
-  lines.push('', `Recorded: ${formatRecordedDate(note.createdAt)}`);
 
   return lines.join('\n');
 }

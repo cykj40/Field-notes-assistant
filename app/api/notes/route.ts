@@ -4,6 +4,7 @@ import { getNotes, createNote } from '@/lib/storage';
 import { requireApiKey } from '@/lib/apiKey';
 import { NOTE_TAKERS } from '@/lib/noteTakers';
 import { CreateNoteInput } from '@/types/note';
+import { getSession } from '@/lib/auth';
 
 const CreateNoteSchema = z
   .object({
@@ -29,6 +30,12 @@ export async function POST(req: NextRequest) {
   const denied = requireApiKey(req);
   if (denied) return denied;
 
+  // Get the authenticated user from session
+  const session = await getSession();
+  if (!session.isLoggedIn) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+
   const body = await req.json();
   const parsed = CreateNoteSchema.safeParse(body);
 
@@ -38,6 +45,7 @@ export async function POST(req: NextRequest) {
 
   const input: CreateNoteInput = {
     tags: parsed.data.tags,
+    createdBy: session.username,
     ...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),
     ...(parsed.data.content !== undefined ? { content: parsed.data.content } : {}),
     ...(parsed.data.location !== undefined ? { location: parsed.data.location } : {}),

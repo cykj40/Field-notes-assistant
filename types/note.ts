@@ -7,6 +7,7 @@ export interface Note {
   location?: string;
   tags: string[];
   noteTaker?: NoteTaker;
+  createdBy?: string;
   createdAt: string;
   updatedAt: string;
   sentToChat: boolean;
@@ -18,6 +19,7 @@ export type CreateNoteInput = {
   location?: string;
   tags: string[];
   noteTaker?: NoteTaker;
+  createdBy?: string;
 };
 
 export type UpdateNoteInput = Partial<CreateNoteInput>;

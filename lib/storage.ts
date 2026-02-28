@@ -35,6 +35,7 @@ export async function createNote(input: CreateNoteInput): Promise<Note> {
     ...(input.content ? { content: input.content } : {}),
     ...(input.location ? { location: input.location } : {}),
     ...(input.noteTaker ? { noteTaker: input.noteTaker } : {}),
+    ...(input.createdBy ? { createdBy: input.createdBy } : {}),
   };
   notes.unshift(newNote);
   await writeNotes(notes);
