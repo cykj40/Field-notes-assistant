@@ -32,8 +32,15 @@ export default function NoteActions({ note }: NoteActionsProps) {
       const data = await res.json();
       setError(data.error ?? 'Failed to send to Google Chat.');
     } else {
-      setSentToChat(true);
-      router.refresh();
+      const data = await res.json();
+      if (data.deleted) {
+        // Note was sent and deleted — go back to home
+        router.push('/');
+        router.refresh();
+      } else {
+        setSentToChat(true);
+        router.refresh();
+      }
     }
   }
 

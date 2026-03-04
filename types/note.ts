@@ -11,6 +11,14 @@ export interface Note {
   createdAt: string;
   updatedAt: string;
   sentToChat: boolean;
+  photos?: NotePhoto[];
+}
+
+export interface NotePhoto {
+  id: string;
+  dataUrl: string;        // base64 data URL stored directly on the note
+  caption?: string | undefined;
+  createdAt: string;
 }
 
 export type CreateNoteInput = {
@@ -20,6 +28,7 @@ export type CreateNoteInput = {
   tags: string[];
   noteTaker?: NoteTaker;
   createdBy?: string;
+  photos?: NotePhoto[];
 };
 
 export type UpdateNoteInput = Partial<CreateNoteInput>;

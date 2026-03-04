@@ -13,8 +13,8 @@ const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
   // Stops browser from sending referrer when navigating away
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-  // Allow microphone (needed for voice dictation); block everything else
-  { key: 'Permissions-Policy', value: 'camera=(), microphone=(self), geolocation=()' },
+  // Allow camera and microphone (needed for photo capture and voice dictation); block geolocation
+  { key: 'Permissions-Policy', value: 'camera=(self), microphone=(self), geolocation=()' },
   // Force HTTPS for 1 year once visited (Vercel always serves HTTPS)
   { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
 ];

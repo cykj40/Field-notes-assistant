@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getNoteById, updateNote } from '@/lib/storage';
+import { getNoteById, deleteNote } from '@/lib/storage';
 import { requireApiKey } from '@/lib/apiKey';
+import { Redis } from '@upstash/redis';
+
+const redis = Redis.fromEnv();
 
 function formatRecordedDate(iso: string): string {
   return new Date(iso).toLocaleString('en-US', {
@@ -68,12 +71,47 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Note not found' }, { status: 404 });
   }
 
-  const text = formatNoteForChat(note);
+  const appUrl = process.env['NEXT_PUBLIC_APP_URL'] ?? '';
+  const hasPhotos = note.photos && note.photos.length > 0;
+
+  let chatPayload: object;
+
+  if (hasPhotos) {
+    // Store photos in Redis temporarily for Google Chat to fetch
+    const imageUrls: string[] = [];
+
+    for (const photo of note.photos!) {
+      await redis.set(`field:photo:${photo.id}`, photo.dataUrl, { ex: 3600 });
+      imageUrls.push(`${appUrl}/api/photos/${photo.id}`);
+    }
+
+    // Build widgets: text first, then images
+    const widgets: object[] = [
+      { textParagraph: { text: formatNoteForChat(note) } },
+      ...imageUrls.map((url) => ({ image: { imageUrl: url } })),
+    ];
+
+    chatPayload = {
+      cards: [
+        {
+          header: {
+            title: `Field Note: ${note.title ?? 'Untitled'}`,
+            subtitle: `${note.createdBy ?? 'Unknown'} — ${formatRecordedDate(note.createdAt)}`,
+          },
+          sections: [{ widgets }],
+        },
+      ],
+    };
+  } else {
+    // Plain text — existing behavior
+    const text = formatNoteForChat(note);
+    chatPayload = { text };
+  }
 
   const response = await fetch(webhookUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify(chatPayload),
   });
 
   if (!response.ok) {
@@ -81,6 +119,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Google Chat error: ${error}` }, { status: 502 });
   }
 
-  const updated = await updateNote(noteId, { sentToChat: true });
-  return NextResponse.json({ success: true, note: updated });
+  // Delete the note after successful send
+  await deleteNote(noteId);
+  return NextResponse.json({ success: true, deleted: true });
 }

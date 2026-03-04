@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Note, CreateNoteInput } from '@/types/note';
+import { Note, CreateNoteInput, NotePhoto } from '@/types/note';
 
 interface NoteFormProps {
   initialData?: Partial<Note>;
@@ -57,6 +57,10 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
   const [recording, setRecording] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const [photos, setPhotos] = useState<NotePhoto[]>(initialData?.photos ?? []);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const SR = getSpeechRecognitionCtor();
@@ -102,13 +106,88 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
     setRecording(true);
   }, [recording]);
 
+  const compressImage = useCallback(async (file: File, maxWidth = 1200, quality = 0.7): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const scale = Math.min(1, maxWidth / img.width);
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = url;
+    });
+  }, []);
+
+  const handlePhotoCapture = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      setUploadingPhoto(true);
+      setError('');
+
+      try {
+        // Compress the image
+        const compressedDataUrl = await compressImage(file);
+
+        // Upload to server
+        const blob = await (await fetch(compressedDataUrl)).blob();
+        const formData = new FormData();
+        formData.append('image', blob, 'photo.jpg');
+
+        const res = await fetch('/api/photos/upload', {
+          method: 'POST',
+          headers: {
+            'x-api-key': process.env['NEXT_PUBLIC_FIELD_NOTES_API_KEY'] ?? '',
+          },
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error ?? 'Failed to upload photo');
+        }
+
+        const { id, dataUrl } = await res.json();
+
+        // Add to photos array
+        const newPhoto: NotePhoto = {
+          id,
+          dataUrl,
+          createdAt: new Date().toISOString(),
+        };
+
+        setPhotos((prev) => [...prev, newPhoto]);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to upload photo');
+      } finally {
+        setUploadingPhoto(false);
+        // Reset the input
+        if (e.target) {
+          e.target.value = '';
+        }
+      }
+    },
+    [compressImage]
+  );
+
+  const removePhoto = useCallback((photoId: string) => {
+    setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+  }, []);
+
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
       setError('');
 
-      if (!title.trim() && !content.trim()) {
-        setError('Please fill in at least a title or some notes.');
+      if (!title.trim() && !content.trim() && photos.length === 0) {
+        setError('Please fill in at least a title, some notes, or add a photo.');
         return;
       }
 
@@ -121,6 +200,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
         title: title.trim(),
         content: content.trim(),
         tags: [],
+        photos,
       };
 
       const url = isEdit ? `/api/notes/${noteId}` : '/api/notes';
@@ -147,7 +227,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       router.push(`/notes/${saved.id}`);
       router.refresh();
     },
-    [title, content, recording, isEdit, noteId, router]
+    [title, content, photos, recording, isEdit, noteId, router]
   );
 
   return (
@@ -212,6 +292,80 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
         )}
       </div>
 
+      {/* Photos */}
+      <div>
+        <label className="label">Photos</label>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => cameraInputRef.current?.click()}
+            disabled={uploadingPhoto}
+            className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300 min-h-[48px] text-sm font-semibold transition-colors disabled:opacity-50"
+          >
+            <CameraIcon />
+            Take Photo
+          </button>
+          <button
+            type="button"
+            onClick={() => galleryInputRef.current?.click()}
+            disabled={uploadingPhoto}
+            className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300 min-h-[48px] text-sm font-semibold transition-colors disabled:opacity-50"
+          >
+            <ImageIcon />
+            Choose from Library
+          </button>
+        </div>
+
+        {/* Hidden file inputs */}
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handlePhotoCapture}
+          className="hidden"
+        />
+        <input
+          ref={galleryInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handlePhotoCapture}
+          className="hidden"
+        />
+
+        {/* Photo thumbnails */}
+        {photos.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <p className="text-sm font-semibold text-gray-700">
+              {photos.length} {photos.length === 1 ? 'photo' : 'photos'} attached
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {photos.map((photo) => (
+                <div key={photo.id} className="relative group">
+                  <img
+                    src={photo.dataUrl}
+                    alt="Field photo"
+                    className="w-full h-24 object-cover rounded-lg"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(photo.id)}
+                    className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center rounded-full bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Remove photo"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {uploadingPhoto && (
+          <p className="mt-2 text-sm text-gray-600">Uploading photo...</p>
+        )}
+      </div>
+
       {/* Actions */}
       <div className="flex gap-3 pt-2">
         <button type="submit" className="btn-primary flex-1" disabled={saving} suppressHydrationWarning>
@@ -246,6 +400,29 @@ function MicOffIcon() {
       <line x1="9" y1="9" x2="15" y2="15" />
       <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
       <line x1="12" y1="19" x2="12" y2="22" />
+    </svg>
+  );
+}
+
+function CameraIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+      <circle cx="12" cy="13" r="3" />
+    </svg>
+  );
+}
+
+function ImageIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+      <circle cx="8.5" cy="8.5" r="1.5" />
+      <path d="M21 15l-5-5L5 21" />
     </svg>
   );
 }

@@ -78,6 +78,31 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
           <p className="text-gray-800 text-sm whitespace-pre-wrap leading-relaxed">{note.content}</p>
         </div>
 
+        {/* Photos */}
+        {note.photos && note.photos.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold text-gray-700">
+              📷 Photos ({note.photos.length})
+            </h3>
+            <div className="grid grid-cols-2 gap-2">
+              {note.photos.map((photo) => (
+                <div key={photo.id} className="relative rounded-lg overflow-hidden">
+                  <img
+                    src={photo.dataUrl}
+                    alt={photo.caption ?? 'Field photo'}
+                    className="w-full h-40 object-cover"
+                  />
+                  {photo.caption && (
+                    <p className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-2 py-1">
+                      {photo.caption}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Actions */}
         <NoteActions note={note} />
       </main>

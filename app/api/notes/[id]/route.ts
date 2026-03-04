@@ -5,6 +5,13 @@ import { requireApiKey } from '@/lib/apiKey';
 import { NOTE_TAKERS } from '@/lib/noteTakers';
 import { UpdateNoteInput } from '@/types/note';
 
+const PhotoSchema = z.object({
+  id: z.string(),
+  dataUrl: z.string().startsWith('data:image/'),
+  caption: z.string().optional(),
+  createdAt: z.string(),
+});
+
 const UpdateNoteSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   content: z.string().min(1).optional(),
@@ -12,6 +19,7 @@ const UpdateNoteSchema = z.object({
   tags: z.array(z.string()).optional(),
   noteTaker: z.enum(NOTE_TAKERS).optional(),
   sentToChat: z.boolean().optional(),
+  photos: z.array(PhotoSchema).optional(),
 });
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -43,6 +51,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     ...(parsed.data.tags !== undefined ? { tags: parsed.data.tags } : {}),
     ...(parsed.data.noteTaker !== undefined ? { noteTaker: parsed.data.noteTaker } : {}),
     ...(parsed.data.sentToChat !== undefined ? { sentToChat: parsed.data.sentToChat } : {}),
+    ...(parsed.data.photos !== undefined ? { photos: parsed.data.photos } : {}),
   };
 
   const updated = await updateNote(id, input);

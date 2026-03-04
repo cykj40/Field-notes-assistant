@@ -31,6 +31,7 @@ export async function createNote(input: CreateNoteInput): Promise<Note> {
     createdAt: now,
     updatedAt: now,
     sentToChat: false,
+    photos: input.photos ?? [],
     ...(input.title ? { title: input.title } : {}),
     ...(input.content ? { content: input.content } : {}),
     ...(input.location ? { location: input.location } : {}),
