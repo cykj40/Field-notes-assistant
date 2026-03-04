@@ -85,20 +85,24 @@ export async function POST(req: NextRequest) {
       imageUrls.push(`${appUrl}/api/photos/${photo.id}`);
     }
 
-    // Build widgets: text first, then images
+    // Build widgets: text first, then images with altText
     const widgets: object[] = [
       { textParagraph: { text: formatNoteForChat(note) } },
-      ...imageUrls.map((url) => ({ image: { imageUrl: url } })),
+      ...imageUrls.map((url) => ({ image: { imageUrl: url, altText: 'Field photo' } })),
     ];
 
+    // CRITICAL: Use cardsV2 (NOT cards) for Google Chat incoming webhooks
     chatPayload = {
-      cards: [
+      cardsV2: [
         {
-          header: {
-            title: `Field Note: ${note.title ?? 'Untitled'}`,
-            subtitle: `${note.createdBy ?? 'Unknown'} — ${formatRecordedDate(note.createdAt)}`,
+          cardId: noteId,
+          card: {
+            header: {
+              title: `Field Note: ${note.title ?? 'Untitled'}`,
+              subtitle: `${note.createdBy ?? 'Unknown'} — ${formatRecordedDate(note.createdAt)}`,
+            },
+            sections: [{ widgets }],
           },
-          sections: [{ widgets }],
         },
       ],
     };
