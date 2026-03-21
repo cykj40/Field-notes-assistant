@@ -1,79 +1,25 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Note, CreateNoteInput, NotePhoto } from '@/types/note';
+import { useVoiceRecognition } from '@/hooks/useVoiceRecognition';
 
 interface NoteFormProps {
   initialData?: Partial<Note>;
   noteId?: string;
 }
 
-interface SpeechRecognitionAlternativeLike {
-  transcript: string;
-  confidence: number;
-}
-
-interface SpeechRecognitionResultLike {
-  isFinal: boolean;
-  0?: SpeechRecognitionAlternativeLike;
-}
-
-interface SpeechRecognitionEventLike {
-  resultIndex: number;
-  results: ArrayLike<SpeechRecognitionResultLike>;
-}
-
-interface SpeechRecognitionErrorEventLike {
-  error: string;
-}
-
-interface SpeechRecognitionLike {
-  lang: string;
-  interimResults: boolean;
-  continuous: boolean;
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-}
-
-type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
-
-type WindowWithSpeechRecognition = Window & {
-  SpeechRecognition?: SpeechRecognitionCtor;
-  webkitSpeechRecognition?: SpeechRecognitionCtor;
-};
-
-function getSpeechRecognitionCtor(): SpeechRecognitionCtor | undefined {
-  const w = window as WindowWithSpeechRecognition;
-  return w.SpeechRecognition ?? w.webkitSpeechRecognition;
-}
-
-/**
- * Sends text to Google Translate with no source language specified so it
- * auto-detects. Returns the English translation, or the original text if the
- * API call fails (so notes are never silently dropped).
- */
-async function translateToEnglish(text: string): Promise<string> {
-  try {
-    const key = process.env['NEXT_PUBLIC_GOOGLE_TRANSLATE_API_KEY'];
-    if (!key) return text;
-    const res = await fetch(
-      `https://translation.googleapis.com/language/translate/v2?key=${key}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // No `source` field — Google auto-detects the language
-        body: JSON.stringify({ q: text, target: 'en', format: 'text' }),
-      }
-    );
-    const data = await res.json();
-    return data?.data?.translations?.[0]?.translatedText ?? text;
-  } catch {
-    return text;
+function getDefaultVoiceLanguage(): 'en-US' | 'es-MX' {
+  if (typeof navigator === 'undefined') {
+    return 'en-US';
   }
+
+  const browserPrefersSpanish =
+    navigator.language?.toLowerCase().startsWith('es') ||
+    navigator.languages?.some((language) => language.toLowerCase().startsWith('es'));
+
+  return browserPrefersSpanish ? 'es-MX' : 'en-US';
 }
 
 export default function NoteForm({ initialData, noteId }: NoteFormProps) {
@@ -84,91 +30,23 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
   const [content, setContent] = useState(initialData?.content ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [recording, setRecording] = useState(false);
-  const [speechSupported, setSpeechSupported] = useState(false);
-  const [showTranslatedBadge, setShowTranslatedBadge] = useState(false);
   const [photos, setPhotos] = useState<NotePhoto[]>(initialData?.photos ?? []);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [voiceLanguage, setVoiceLanguage] = useState<'en-US' | 'es-MX'>(getDefaultVoiceLanguage);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const isRecordingRef = useRef(false);
-  const setContentRef = useRef(setContent);
-  useEffect(() => { setContentRef.current = setContent; }, [setContent]);
-
-  useEffect(() => {
-    setSpeechSupported(!!getSpeechRecognitionCtor());
-  }, []);
-
-  const showBadge = useCallback(() => {
-    setShowTranslatedBadge(true);
-    setTimeout(() => setShowTranslatedBadge(false), 2000);
-  }, []);
-
   const appendToNotes = useCallback((text: string) => {
-    setContentRef.current((prev) => (prev ? prev + ' ' + text : text).trim());
+    setContent((prev) => (prev ? prev + ' ' + text : text).trim());
   }, []);
 
-  const toggleRecording = useCallback(() => {
-    if (recording) {
-      isRecordingRef.current = false;
-      try { recognitionRef.current?.stop(); } catch { /* already stopped */ }
-      setRecording(false);
-      return;
-    }
-
-    const SR = getSpeechRecognitionCtor();
-    if (!SR) return;
-
-    const recognition = new SR();
-    // Use the device/browser language so transcription matches what the speaker expects.
-    // Google Translate auto-detects and converts to English regardless of what language is spoken.
-    recognition.lang = (typeof navigator !== 'undefined' ? navigator.language : '') || 'en-US';
-    recognition.interimResults = false;
-    recognition.continuous = true;
-
-    recognition.onresult = async (event: SpeechRecognitionEventLike) => {
-      if (!isRecordingRef.current) return;
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (!result) continue;
-        const alt = result[0];
-        if (result.isFinal && alt && alt.transcript.trim()) {
-          const original = alt.transcript.trim();
-          const translated = await translateToEnglish(original);
-          appendToNotes(translated);
-          // Show badge only if something was actually translated
-          if (translated !== original) showBadge();
-        }
-      }
-    };
-
-    recognition.onerror = (event: SpeechRecognitionErrorEventLike) => {
-      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        // Microphone permission denied — stop cleanly
-        isRecordingRef.current = false;
-        setRecording(false);
-      }
-      // 'no-speech', 'network', 'aborted' — let onend handle the restart
-    };
-
-    recognition.onend = () => {
-      if (isRecordingRef.current) {
-        // Auto-restart after silence — mobile browsers stop after each pause
-        try { recognition.start(); } catch { /* already starting */ }
-      } else {
-        setRecording(false);
-      }
-    };
-
-    recognitionRef.current = recognition;
-    isRecordingRef.current = true;
-    // Must be called directly inside the click handler (not deferred) so mobile
-    // browsers honour the user-gesture requirement for microphone access.
-    recognition.start();
-    setRecording(true);
-  }, [recording, appendToNotes, showBadge]);
+  const { isRecording, isSupported, start, stop } = useVoiceRecognition({
+    lang: voiceLanguage,
+    onResult: (text) => {
+      appendToNotes(text);
+    },
+    onError: (voiceError) => console.error('[voice]', voiceError),
+  });
 
   const compressImage = useCallback(async (file: File, maxWidth = 1200, quality = 0.7): Promise<string> => {
     return new Promise((resolve) => {
@@ -251,13 +129,12 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
         return;
       }
 
-      if (recording) {
-        isRecordingRef.current = false;
-        try { recognitionRef.current?.stop(); } catch { /* already stopped */ }
-        setRecording(false);
+      if (isRecording) {
+        stop();
       }
 
       setSaving(true);
+
       const body: CreateNoteInput = {
         title: title.trim(),
         content: content.trim(),
@@ -289,7 +166,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       router.push(`/notes/${saved.id}`);
       router.refresh();
     },
-    [title, content, photos, recording, isEdit, noteId, router]
+    [title, content, photos, isRecording, stop, isEdit, noteId, router]
   );
 
   return (
@@ -300,7 +177,6 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
         </div>
       )}
 
-      {/* Title */}
       <div>
         <label className="label" htmlFor="title">Title</label>
         <input
@@ -315,7 +191,6 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
         />
       </div>
 
-      {/* Notes + voice dictation */}
       <div>
         <label className="label" htmlFor="content">Notes</label>
         <textarea
@@ -326,21 +201,53 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
           onChange={(e) => setContent(e.target.value)}
           suppressHydrationWarning
         />
-        {speechSupported && (
-          <div className="relative mt-2">
+        {isSupported ? (
+          <div className="mt-2 space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setVoiceLanguage('en-US')}
+                disabled={isRecording}
+                aria-pressed={voiceLanguage === 'en-US'}
+                className={[
+                  'rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
+                  voiceLanguage === 'en-US'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300',
+                  isRecording ? 'cursor-not-allowed opacity-60' : '',
+                ].join(' ')}
+              >
+                English
+              </button>
+              <button
+                type="button"
+                onClick={() => setVoiceLanguage('es-MX')}
+                disabled={isRecording}
+                aria-pressed={voiceLanguage === 'es-MX'}
+                className={[
+                  'rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
+                  voiceLanguage === 'es-MX'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300',
+                  isRecording ? 'cursor-not-allowed opacity-60' : '',
+                ].join(' ')}
+              >
+                Espanol
+              </button>
+            </div>
             <button
               type="button"
-              onClick={toggleRecording}
-              aria-label={recording ? 'Stop recording' : 'Start voice dictation'}
+              onClick={isRecording ? stop : start}
+              aria-label={isRecording ? 'Stop recording' : 'Start voice dictation'}
               className={[
                 'flex w-full items-center justify-center gap-2 rounded-lg',
                 'min-h-[48px] text-sm font-semibold transition-colors',
-                recording
+                isRecording
                   ? 'animate-pulse bg-red-600 text-white hover:bg-red-700 active:bg-red-800'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300',
               ].join(' ')}
             >
-              {recording ? (
+              {isRecording ? (
                 <>
                   <MicOffIcon />
                   Stop Recording
@@ -348,20 +255,16 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
               ) : (
                 <>
                   <MicIcon />
-                  Dictate
+                  {voiceLanguage === 'es-MX' ? 'Dictate in Espanol' : 'Dictate in English'}
                 </>
               )}
             </button>
-            {showTranslatedBadge && (
-              <span data-testid="translated-badge" className="absolute -top-7 left-1/2 -translate-x-1/2 rounded-full bg-blue-100 px-3 py-0.5 text-xs font-medium text-blue-700 shadow-sm">
-                🌐 Translated
-              </span>
-            )}
           </div>
+        ) : (
+          <p className="mt-2 text-sm text-gray-500">Voice not supported on this browser</p>
         )}
       </div>
 
-      {/* Photos */}
       <div>
         <label className="label">Photos</label>
         <div className="flex gap-2">
@@ -385,7 +288,6 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
           </button>
         </div>
 
-        {/* Hidden file inputs */}
         <input
           ref={cameraInputRef}
           type="file"
@@ -402,7 +304,6 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
           className="hidden"
         />
 
-        {/* Photo thumbnails */}
         {photos.length > 0 && (
           <div className="mt-3 space-y-2">
             <p className="text-sm font-semibold text-gray-700">
@@ -435,7 +336,6 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
         )}
       </div>
 
-      {/* Actions */}
       <div className="flex gap-3 pt-2">
         <button type="submit" className="btn-primary flex-1" disabled={saving} suppressHydrationWarning>
           {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Note'}

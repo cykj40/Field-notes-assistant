@@ -20,7 +20,7 @@ Mobile-first Next.js 15 PWA for field supervisors to record voice-dictated notes
 | `NEXT_PUBLIC_FIELD_NOTES_API_KEY` | Yes | Same value as above — sent as `x-api-key` from browser |
 | `SESSION_SECRET` | Yes | Min-32-char secret for iron-session cookie encryption |
 | `NEXT_PUBLIC_APP_URL` | Yes | Base URL (`https://your-app.vercel.app` in prod, `http://localhost:3000` in dev) |
-| `NEXT_PUBLIC_GOOGLE_TRANSLATE_API_KEY` | Yes (for bilingual voice) | Google Cloud Translation API key — see below |
+| `NEXT_PUBLIC_GOOGLE_TRANSLATE_API_KEY` | Optional | Legacy translation key; current voice dictation no longer depends on it |
 
 Generate `FIELD_NOTES_API_KEY` / `SESSION_SECRET`:
 ```
@@ -33,38 +33,25 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ### How It Works
 
-The app supports zero-config bilingual dictation (English + Spanish) without any language toggle or per-user configuration. Whoever speaks — in whatever language — the note comes out in clear English.
+Voice dictation now lives in [`hooks/useVoiceRecognition.ts`](./hooks/useVoiceRecognition.ts) and is consumed only by [`components/NoteForm.tsx`](./components/NoteForm.tsx). There is no separate `VoiceRecorder` component in the current app.
 
-**Pattern: single SpeechRecognition + always-translate**
+**Pattern: lazy-init `SpeechRecognition` + explicit language mode**
 
-One `SpeechRecognition` instance runs with `lang = navigator.language` (the device language). Every final transcript is sent to the Google Cloud Translation REST API with **no `source` field** — Google auto-detects the spoken language and always returns English.
+The recognizer is created lazily inside the hook's `start()` method so the browser sees it as part of the direct user click. This avoids stale-ref / remount issues from pre-initializing recognition in an effect.
 
-- If the text is already English, Google returns it unchanged → note appended, no badge.
-- If the text is Spanish (or any other language), Google returns the English translation → note appended, badge shown.
+`NoteForm` shows a clean two-button language mode above the mic:
+- `English` -> `en-US`
+- `Espanol` -> `es-MX`
 
-**Translation fallback**
-
-If the translation API call fails for any reason (network error, missing key, quota exceeded), the original transcript is appended unchanged. Notes are never silently dropped.
-
-**Visual indicator**
-
-A "🌐 Translated" badge appears above the mic button for 2 seconds when the translated text differs from the original. No language toggle, no persistent indicator.
-
-### Google Translate API Key Setup
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Cloud Translation API → Enable
-2. Create an API key and restrict it to the Translation API + your domain
-3. Add to `.env.local`:
-   ```
-   NEXT_PUBLIC_GOOGLE_TRANSLATE_API_KEY=your_key_here
-   ```
-4. Add the same variable to your Vercel project dashboard (Settings → Environment Variables)
-
-The key must be `NEXT_PUBLIC_` because the translation call is made directly from the browser (no server route needed). With 7 users the cost is well under $10/month.
+The selected language tells the recognizer what language to expect before recording starts. The resulting transcript is appended exactly as spoken, so English stays English and Spanish stays Spanish.
 
 ### Auto-restart behavior
 
-Mobile browsers stop SpeechRecognition after a few seconds of silence. The `onend` handler restarts the instance if `isRecordingRef.current` is still `true`, maintaining continuous dictation across pauses without any user interaction.
+`continuous` is intentionally set to `false` for better mobile reliability. Mobile browsers stop `SpeechRecognition` after each utterance, so the hook restarts the recognizer from `onend` while recording is still active.
+
+### PWA cache note
+
+The app uses `next-pwa`, and `next.config.js` now sets `skipWaiting: true` so newer service workers activate faster after deploys. If someone still sees stale voice behavior after a release, have them hard refresh once to flush the old bundle.
 
 ---
 
@@ -74,16 +61,17 @@ Mobile browsers stop SpeechRecognition after a few seconds of silence. The `onen
 npx playwright test
 ```
 
-Tests live in `tests/`. Covers auth, note CRUD, photo upload/display, Google Chat webhook, multi-user note authorship, and voice dictation with auto-translation.
+Tests live in `tests/`. Covers auth, note CRUD, photo upload/display, Google Chat webhook, multi-user note authorship, and voice dictation.
 
 ### Voice dictation tests (`tests/voice-dictation-bilingual.spec.ts`)
 
-The Web Speech API is not available in headless Chromium, so the tests mock it entirely using `page.addInitScript()`. This injects a `MockSpeechRecognition` class into the page before any scripts load — it's the only reliable way to intercept `window.SpeechRecognition` before the component mounts.
+The Web Speech API is not available in headless Chromium, so the tests mock it entirely using `page.addInitScript()`.
 
 **Pattern:**
-1. `mockSpeechRecognition(page)` — called in `beforeEach`, registers the mock via `addInitScript`; the single active instance is stored in `window.__mockInstance` when `start()` is called
-2. `page.route('**/language/translate/v2**', ...)` — intercepts translate API calls per-test
-3. `fireSpeechResult(page, transcript, confidence)` — fires a fake final result on the active instance
+1. `mockSpeechRecognition(page)` registers the lazy-init recognizer mock and tracks `window.__mockStartCount`
+2. `setBrowserLanguage(page, 'en-US' | 'es-MX')` sets the default browser language before the page loads
+3. `goToNoteForm(page, user)` opens the note form for any seeded user
+4. `fireSpeechResult(page, transcript)` drives final transcripts into the active recognizer instance
 
 **Run just the voice tests:**
 ```bash
