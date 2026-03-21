@@ -24,12 +24,16 @@ interface SpeechRecognitionEventLike {
   results: ArrayLike<SpeechRecognitionResultLike>;
 }
 
+interface SpeechRecognitionErrorEventLike {
+  error: string;
+}
+
 interface SpeechRecognitionLike {
   lang: string;
   interimResults: boolean;
   continuous: boolean;
   onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
   onend: (() => void) | null;
   start: () => void;
   stop: () => void;
@@ -47,6 +51,11 @@ function getSpeechRecognitionCtor(): SpeechRecognitionCtor | undefined {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition;
 }
 
+/**
+ * Sends text to Google Translate with no source language specified so it
+ * auto-detects. Returns the English translation, or the original text if the
+ * API call fails (so notes are never silently dropped).
+ */
 async function translateToEnglish(text: string): Promise<string> {
   try {
     const key = process.env['NEXT_PUBLIC_GOOGLE_TRANSLATE_API_KEY'];
@@ -56,7 +65,8 @@ async function translateToEnglish(text: string): Promise<string> {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ q: text, source: 'es', target: 'en', format: 'text' }),
+        // No `source` field — Google auto-detects the language
+        body: JSON.stringify({ q: text, target: 'en', format: 'text' }),
       }
     );
     const data = await res.json();
@@ -82,16 +92,14 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
-  const enRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const esRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const isRecordingRef = useRef(false);
-  const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastResultRef = useRef<
-    Record<string, { text: string; confidence: number; ts: number }>
-  >({});
-  // Keep a stable ref to content setter to avoid stale closures in recognition callbacks
   const setContentRef = useRef(setContent);
   useEffect(() => { setContentRef.current = setContent; }, [setContent]);
+
+  useEffect(() => {
+    setSpeechSupported(!!getSpeechRecognitionCtor());
+  }, []);
 
   const showBadge = useCallback(() => {
     setShowTranslatedBadge(true);
@@ -102,141 +110,65 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
     setContentRef.current((prev) => (prev ? prev + ' ' + text : text).trim());
   }, []);
 
-  const resolveWinner = useCallback(
-    (lastResult: Record<string, { text: string; confidence: number; ts: number }>) => {
-      if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current);
-      pendingTimerRef.current = setTimeout(async () => {
-        const en = lastResult['en'];
-        const es = lastResult['es'];
-        delete lastResult['en'];
-        delete lastResult['es'];
+  const toggleRecording = useCallback(() => {
+    if (recording) {
+      isRecordingRef.current = false;
+      try { recognitionRef.current?.stop(); } catch { /* already stopped */ }
+      setRecording(false);
+      return;
+    }
 
-        let winner: { text: string; lang: 'en' | 'es' } | null = null;
-
-        if (en && es) {
-          winner =
-            en.confidence >= es.confidence
-              ? { text: en.text, lang: 'en' }
-              : { text: es.text, lang: 'es' };
-        } else if (en) {
-          winner = { text: en.text, lang: 'en' };
-        } else if (es) {
-          winner = { text: es.text, lang: 'es' };
-        }
-
-        if (!winner) return;
-
-        if (winner.lang === 'es') {
-          const translated = await translateToEnglish(winner.text);
-          appendToNotes(translated);
-          showBadge();
-        } else {
-          appendToNotes(winner.text);
-        }
-      }, 300);
-    },
-    [appendToNotes, showBadge]
-  );
-
-  const setupRecognition = useCallback(() => {
     const SR = getSpeechRecognitionCtor();
     if (!SR) return;
 
-    const en = new SR();
-    en.lang = 'en-US';
-    en.interimResults = false;
-    en.continuous = true;
+    const recognition = new SR();
+    // Use the device/browser language so transcription matches what the speaker expects.
+    // Google Translate auto-detects and converts to English regardless of what language is spoken.
+    recognition.lang = (typeof navigator !== 'undefined' ? navigator.language : '') || 'en-US';
+    recognition.interimResults = false;
+    recognition.continuous = true;
 
-    const es = new SR();
-    es.lang = 'es-MX';
-    es.interimResults = false;
-    es.continuous = true;
-
-    en.onresult = (event: SpeechRecognitionEventLike) => {
+    recognition.onresult = async (event: SpeechRecognitionEventLike) => {
       if (!isRecordingRef.current) return;
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
         if (!result) continue;
         const alt = result[0];
-        if (result.isFinal && alt) {
-          lastResultRef.current['en'] = {
-            text: alt.transcript,
-            confidence: alt.confidence,
-            ts: Date.now(),
-          };
-          resolveWinner(lastResultRef.current);
+        if (result.isFinal && alt && alt.transcript.trim()) {
+          const original = alt.transcript.trim();
+          const translated = await translateToEnglish(original);
+          appendToNotes(translated);
+          // Show badge only if something was actually translated
+          if (translated !== original) showBadge();
         }
       }
     };
 
-    es.onresult = (event: SpeechRecognitionEventLike) => {
-      if (!isRecordingRef.current) return;
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (!result) continue;
-        const alt = result[0];
-        if (result.isFinal && alt) {
-          lastResultRef.current['es'] = {
-            text: alt.transcript,
-            confidence: alt.confidence,
-            ts: Date.now(),
-          };
-          resolveWinner(lastResultRef.current);
-        }
+    recognition.onerror = (event: SpeechRecognitionErrorEventLike) => {
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        // Microphone permission denied — stop cleanly
+        isRecordingRef.current = false;
+        setRecording(false);
       }
+      // 'no-speech', 'network', 'aborted' — let onend handle the restart
     };
 
-    en.onerror = () => { /* individual recognizer errors are non-fatal */ };
-    es.onerror = () => { /* individual recognizer errors are non-fatal */ };
-
-    // Auto-restart on silence — Web Speech API stops after a pause
-    en.onend = () => {
+    recognition.onend = () => {
       if (isRecordingRef.current) {
-        try { en.start(); } catch { /* already started */ }
+        // Auto-restart after silence — mobile browsers stop after each pause
+        try { recognition.start(); } catch { /* already starting */ }
       } else {
         setRecording(false);
       }
     };
-    es.onend = () => {
-      if (isRecordingRef.current) {
-        try { es.start(); } catch { /* already started */ }
-      }
-    };
 
-    enRecognitionRef.current = en;
-    esRecognitionRef.current = es;
-  }, [resolveWinner]);
-
-  useEffect(() => {
-    const SR = getSpeechRecognitionCtor();
-    setSpeechSupported(!!SR);
-    if (SR) setupRecognition();
-  }, [setupRecognition]);
-
-  const startRecording = useCallback(() => {
-    if (!enRecognitionRef.current || !esRecognitionRef.current) {
-      setupRecognition();
-    }
+    recognitionRef.current = recognition;
     isRecordingRef.current = true;
-    try { enRecognitionRef.current?.start(); } catch { /* already started */ }
-    try { esRecognitionRef.current?.start(); } catch { /* already started */ }
+    // Must be called directly inside the click handler (not deferred) so mobile
+    // browsers honour the user-gesture requirement for microphone access.
+    recognition.start();
     setRecording(true);
-  }, [setupRecognition]);
-
-  const stopRecording = useCallback(() => {
-    isRecordingRef.current = false;
-    try { enRecognitionRef.current?.stop(); } catch { /* already stopped */ }
-    try { esRecognitionRef.current?.stop(); } catch { /* already stopped */ }
-    setRecording(false);
-  }, []);
-
-  const toggleRecording = useCallback(() => {
-    if (recording) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
-  }, [recording, startRecording, stopRecording]);
+  }, [recording, appendToNotes, showBadge]);
 
   const compressImage = useCallback(async (file: File, maxWidth = 1200, quality = 0.7): Promise<string> => {
     return new Promise((resolve) => {
@@ -320,7 +252,9 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       }
 
       if (recording) {
-        stopRecording();
+        isRecordingRef.current = false;
+        try { recognitionRef.current?.stop(); } catch { /* already stopped */ }
+        setRecording(false);
       }
 
       setSaving(true);
@@ -355,7 +289,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       router.push(`/notes/${saved.id}`);
       router.refresh();
     },
-    [title, content, photos, recording, stopRecording, isEdit, noteId, router]
+    [title, content, photos, recording, isEdit, noteId, router]
   );
 
   return (

@@ -33,31 +33,22 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ### How It Works
 
-The app supports zero-config bilingual dictation (English + Spanish). One supervisor speaks Spanish; the rest speak English. No language toggle is exposed to users.
+The app supports zero-config bilingual dictation (English + Spanish) without any language toggle or per-user configuration. Whoever speaks — in whatever language — the note comes out in clear English.
 
-**Pattern: dual parallel SpeechRecognition**
+**Pattern: single SpeechRecognition + always-translate**
 
-Two `SpeechRecognition` instances run simultaneously at all times:
-- One with `lang="en-US"`
-- One with `lang="es-MX"`
+One `SpeechRecognition` instance runs with `lang = navigator.language` (the device language). Every final transcript is sent to the Google Cloud Translation REST API with **no `source` field** — Google auto-detects the spoken language and always returns English.
 
-Both listen concurrently. When a final result arrives from either, a 300 ms debounce timer starts. Within that window:
-- If **both** instances return a result, the one with higher `confidence` wins.
-- If only one returns a result, it wins automatically.
-
-**Spanish → English translation**
-
-If the winning result came from the `es-MX` recognizer, it is sent to the Google Cloud Translation REST API (`/language/translate/v2`) with `source=es`, `target=en`. The translated English text is appended to the notes textarea.
-
-If the winning result is English, it is appended directly — no API call.
+- If the text is already English, Google returns it unchanged → note appended, no badge.
+- If the text is Spanish (or any other language), Google returns the English translation → note appended, badge shown.
 
 **Translation fallback**
 
-If the translation API call fails for any reason (network error, missing key, quota exceeded), the original Spanish transcript is appended unchanged. Notes are never silently dropped.
+If the translation API call fails for any reason (network error, missing key, quota exceeded), the original transcript is appended unchanged. Notes are never silently dropped.
 
 **Visual indicator**
 
-A "🌐 Translated" badge appears above the mic button for 2 seconds when a Spanish result is detected and translated. It is invisible to the user otherwise — no language toggle, no persistent indicator.
+A "🌐 Translated" badge appears above the mic button for 2 seconds when the translated text differs from the original. No language toggle, no persistent indicator.
 
 ### Google Translate API Key Setup
 
@@ -69,11 +60,11 @@ A "🌐 Translated" badge appears above the mic button for 2 seconds when a Span
    ```
 4. Add the same variable to your Vercel project dashboard (Settings → Environment Variables)
 
-The key must be `NEXT_PUBLIC_` because the translation call is made directly from the browser (no server route needed).
+The key must be `NEXT_PUBLIC_` because the translation call is made directly from the browser (no server route needed). With 7 users the cost is well under $10/month.
 
 ### Auto-restart behavior
 
-The Web Speech API stops automatically after a few seconds of silence. Both recognizers have `onend` handlers that restart them if `isRecordingRef.current` is still `true`, maintaining continuous dictation across pauses.
+Mobile browsers stop SpeechRecognition after a few seconds of silence. The `onend` handler restarts the instance if `isRecordingRef.current` is still `true`, maintaining continuous dictation across pauses without any user interaction.
 
 ---
 
@@ -83,18 +74,16 @@ The Web Speech API stops automatically after a few seconds of silence. Both reco
 npx playwright test
 ```
 
-Tests live in `tests/`. Covers auth, note CRUD, photo upload/display, Google Chat webhook, multi-user note authorship, and bilingual voice dictation.
+Tests live in `tests/`. Covers auth, note CRUD, photo upload/display, Google Chat webhook, multi-user note authorship, and voice dictation with auto-translation.
 
 ### Voice dictation tests (`tests/voice-dictation-bilingual.spec.ts`)
 
 The Web Speech API is not available in headless Chromium, so the tests mock it entirely using `page.addInitScript()`. This injects a `MockSpeechRecognition` class into the page before any scripts load — it's the only reliable way to intercept `window.SpeechRecognition` before the component mounts.
 
 **Pattern:**
-1. `mockSpeechRecognition(page)` — called in `beforeEach`, registers the mock via `addInitScript`
+1. `mockSpeechRecognition(page)` — called in `beforeEach`, registers the mock via `addInitScript`; the single active instance is stored in `window.__mockInstance` when `start()` is called
 2. `page.route('**/language/translate/v2**', ...)` — intercepts translate API calls per-test
-3. `fireSpeechResult(page, lang, transcript, confidence)` — fires a fake final result on the recognizer instance matching `lang` (instances register themselves in `window.__mockInstances` when `start()` is called)
-
-The 300ms confidence-resolution window is tested by firing both recognizers in rapid succession and asserting which text ends up in the textarea.
+3. `fireSpeechResult(page, transcript, confidence)` — fires a fake final result on the active instance
 
 **Run just the voice tests:**
 ```bash

@@ -10,8 +10,8 @@ import { login } from './auth.setup';
  * Must be called before any page.goto() so the mock is in place when the
  * component mounts and reads window.SpeechRecognition.
  *
- * Instances register themselves in window.__mockInstances when start() is called,
- * keyed by their `lang` property so fireSpeechResult() can target the right one.
+ * The single active instance is stored in window.__mockInstance when start()
+ * is called so fireSpeechResult() can target it.
  */
 async function mockSpeechRecognition(page: Page) {
   await page.addInitScript(() => {
@@ -24,8 +24,7 @@ async function mockSpeechRecognition(page: Page) {
       onerror: ((e: any) => void) | null = null;
 
       start() {
-        (window as any).__mockInstances = (window as any).__mockInstances || [];
-        (window as any).__mockInstances.push(this);
+        (window as any).__mockInstance = this;
       }
 
       stop() {
@@ -34,9 +33,6 @@ async function mockSpeechRecognition(page: Page) {
 
       /** Fires a final speech result into the component's onresult handler. */
       fireResult(transcript: string, confidence: number) {
-        // Build a shape that matches SpeechRecognitionEventLike:
-        //   results[0].isFinal === true
-        //   results[0][0] === { transcript, confidence }
         const resultItem = Object.assign([{ transcript, confidence }], { isFinal: true });
         const event = { resultIndex: 0, results: [resultItem] };
         this.onresult?.(event);
@@ -49,23 +45,17 @@ async function mockSpeechRecognition(page: Page) {
 }
 
 /**
- * Fires a fake final speech result on the recognizer instance matching `lang`.
- * The instance must already have called start() (i.e. the Dictate button was clicked).
+ * Fires a fake final speech result on the active recognizer instance.
+ * The button must have been clicked first so start() was called.
  */
-async function fireSpeechResult(
-  page: Page,
-  lang: 'en-US' | 'es-MX',
-  transcript: string,
-  confidence: number
-) {
+async function fireSpeechResult(page: Page, transcript: string, confidence: number) {
   await page.evaluate(
-    ({ lang, transcript, confidence }) => {
-      const instances: any[] = (window as any).__mockInstances || [];
-      const instance = instances.find((i: any) => i.lang === lang);
-      if (!instance) throw new Error(`No mock instance found for lang=${lang}`);
+    ({ transcript, confidence }) => {
+      const instance = (window as any).__mockInstance;
+      if (!instance) throw new Error('No active mock SpeechRecognition instance');
       instance.fireResult(transcript, confidence);
     },
-    { lang, transcript, confidence }
+    { transcript, confidence }
   );
 }
 
@@ -118,35 +108,35 @@ async function goToNoteForm(page: Page) {
 // Tests
 // ---------------------------------------------------------------------------
 
-test.describe('Bilingual Voice Dictation', () => {
+test.describe('Voice Dictation with Auto-Translation', () => {
   // Inject the SpeechRecognition mock before every page load in this suite.
   test.beforeEach(async ({ page }) => {
     await mockSpeechRecognition(page);
   });
 
-  // ── 1. English → appends directly, no translate call ──────────────────────
+  // ── 1. English → translate called, returns same text, no badge ─────────────
 
-  test('English speech appends directly without calling the translate API', async ({ page }) => {
-    let translateCalled = false;
-    await page.route('**/language/translate/v2**', async (route) => {
-      translateCalled = true;
-      await route.fulfill({ status: 200, body: '{}' });
-    });
+  test('English speech appends text and no translated badge is shown', async ({ page }) => {
+    // Translate is always called — for English it returns the same text
+    const counter = mockTranslateAPI(page, 'Poured foundation on north wall');
 
     await goToNoteForm(page);
     await page.getByRole('button', { name: 'Start voice dictation' }).click();
     await expect(page.getByRole('button', { name: 'Stop recording' })).toBeVisible();
 
-    await fireSpeechResult(page, 'en-US', 'Poured foundation on north wall', 0.95);
+    await fireSpeechResult(page, 'Poured foundation on north wall', 0.95);
 
     await expect(page.locator('#content')).toContainText(
       'Poured foundation on north wall',
       { timeout: 5000 }
     );
-    expect(translateCalled).toBe(false);
+    // Translate was called (always-translate approach)
+    expect(counter.count).toBe(1);
+    // Badge must NOT appear — translated text equals original
+    await expect(page.getByTestId('translated-badge')).not.toBeVisible();
   });
 
-  // ── 2. Spanish → translate API called, English result in textarea ─────────
+  // ── 2. Spanish → translate returns English result, appended to textarea ────
 
   test('Spanish speech triggers translation and appends the English result', async ({ page }) => {
     const counter = mockTranslateAPI(page, 'Installed rebar on south side');
@@ -155,7 +145,7 @@ test.describe('Bilingual Voice Dictation', () => {
     await page.getByRole('button', { name: 'Start voice dictation' }).click();
     await expect(page.getByRole('button', { name: 'Stop recording' })).toBeVisible();
 
-    await fireSpeechResult(page, 'es-MX', 'Instalamos el hierro en el lado sur', 0.92);
+    await fireSpeechResult(page, 'Instalamos el hierro en el lado sur', 0.92);
 
     await expect(page.locator('#content')).toContainText(
       'Installed rebar on south side',
@@ -164,67 +154,27 @@ test.describe('Bilingual Voice Dictation', () => {
     expect(counter.count).toBe(1);
   });
 
-  // ── 3. Both fire within 300ms — English wins (higher confidence) ──────────
+  // ── 3. Translation API failure → falls back to original text ───────────────
 
-  test('English wins when both recognizers fire and English has higher confidence', async ({ page }) => {
-    let translateCalled = false;
-    await page.route('**/language/translate/v2**', async (route) => {
-      translateCalled = true;
-      await route.fulfill({ status: 200, body: '{}' });
-    });
-
-    await goToNoteForm(page);
-    await page.getByRole('button', { name: 'Start voice dictation' }).click();
-    await expect(page.getByRole('button', { name: 'Stop recording' })).toBeVisible();
-
-    // Fire both within a few ms — well inside the 300ms resolution window.
-    await fireSpeechResult(page, 'es-MX', 'Trabajamos en el techo', 0.70);
-    await fireSpeechResult(page, 'en-US', 'We worked on the roof', 0.91);
-
-    await expect(page.locator('#content')).toContainText(
-      'We worked on the roof',
-      { timeout: 5000 }
-    );
-    expect(translateCalled).toBe(false);
-  });
-
-  // ── 4. Both fire within 300ms — Spanish wins (higher confidence) ──────────
-
-  test('Spanish wins and translation is called when Spanish has higher confidence', async ({ page }) => {
-    const counter = mockTranslateAPI(page, 'We placed the beams');
-
-    await goToNoteForm(page);
-    await page.getByRole('button', { name: 'Start voice dictation' }).click();
-    await expect(page.getByRole('button', { name: 'Stop recording' })).toBeVisible();
-
-    await fireSpeechResult(page, 'en-US', 'We placed something', 0.55);
-    await fireSpeechResult(page, 'es-MX', 'Colocamos las vigas', 0.88);
-
-    await expect(page.locator('#content')).toContainText('We placed the beams', { timeout: 5000 });
-    expect(counter.count).toBe(1);
-  });
-
-  // ── 5. Translation API failure → falls back to original Spanish text ───────
-
-  test('Falls back to original Spanish text when the translation API returns an error', async ({ page }) => {
+  test('Falls back to original text when the translation API returns an error', async ({ page }) => {
     mockTranslateAPIError(page);
 
     await goToNoteForm(page);
     await page.getByRole('button', { name: 'Start voice dictation' }).click();
     await expect(page.getByRole('button', { name: 'Stop recording' })).toBeVisible();
 
-    await fireSpeechResult(page, 'es-MX', 'Terminamos el encofrado', 0.90);
+    await fireSpeechResult(page, 'Terminamos el encofrado', 0.90);
 
-    // Original Spanish text must appear — the note is never dropped.
+    // Original text must appear — the note is never silently dropped
     await expect(page.locator('#content')).toContainText(
       'Terminamos el encofrado',
       { timeout: 5000 }
     );
-    // App must not show an error banner.
+    // App must not show an error banner
     await expect(page.locator('[class*="bg-red-50"]')).not.toBeVisible();
   });
 
-  // ── 6. "🌐 Translated" badge appears briefly then auto-hides ─────────────
+  // ── 4. "🌐 Translated" badge appears when text changes, hides after 2s ─────
 
   test('Translated badge appears after Spanish input and hides after 2 seconds', async ({ page }) => {
     mockTranslateAPI(page, 'We finished the formwork');
@@ -233,20 +183,39 @@ test.describe('Bilingual Voice Dictation', () => {
     await page.getByRole('button', { name: 'Start voice dictation' }).click();
     await expect(page.getByRole('button', { name: 'Stop recording' })).toBeVisible();
 
-    await fireSpeechResult(page, 'es-MX', 'Terminamos el encofrado', 0.90);
+    await fireSpeechResult(page, 'Terminamos el encofrado', 0.90);
 
-    // Badge should appear within 1 second (well before the 2s hide timer).
+    // Badge should appear within 1 second (well before the 2s hide timer)
     await expect(page.getByTestId('translated-badge')).toBeVisible({ timeout: 1000 });
 
-    // After 3 seconds the badge must have auto-hidden (hide timer is 2s).
+    // After 3 seconds the badge must have auto-hidden (hide timer is 2s)
     await page.waitForTimeout(3000);
     await expect(page.getByTestId('translated-badge')).not.toBeVisible();
   });
 
-  // ── 7. Results fired after stop are silently ignored ─────────────────────
+  // ── 5. No badge when translation matches original ──────────────────────────
+
+  test('No badge shown when translated text matches original', async ({ page }) => {
+    // Simulate translate returning the exact same English text
+    mockTranslateAPI(page, 'Concrete poured on second floor');
+
+    await goToNoteForm(page);
+    await page.getByRole('button', { name: 'Start voice dictation' }).click();
+    await expect(page.getByRole('button', { name: 'Stop recording' })).toBeVisible();
+
+    await fireSpeechResult(page, 'Concrete poured on second floor', 0.97);
+
+    await expect(page.locator('#content')).toContainText(
+      'Concrete poured on second floor',
+      { timeout: 5000 }
+    );
+    await expect(page.getByTestId('translated-badge')).not.toBeVisible();
+  });
+
+  // ── 6. Results fired after stop are silently ignored ──────────────────────
 
   test('Speech results fired after stopping are ignored and textarea stays empty', async ({ page }) => {
-    // Provide a translate mock just in case — should never be reached.
+    // Provide a translate mock just in case — should never be reached
     let translateCalled = false;
     await page.route('**/language/translate/v2**', async (route) => {
       translateCalled = true;
@@ -257,13 +226,12 @@ test.describe('Bilingual Voice Dictation', () => {
     await page.getByRole('button', { name: 'Start voice dictation' }).click();
     await expect(page.getByRole('button', { name: 'Stop recording' })).toBeVisible();
 
-    // Stop recording before any result is fired.
+    // Stop recording before any result is fired
     await page.getByRole('button', { name: 'Stop recording' }).click();
     await expect(page.getByRole('button', { name: 'Start voice dictation' })).toBeVisible();
 
-    // Fire results after stop — these should be ignored.
-    await fireSpeechResult(page, 'es-MX', 'Esto no debe aparecer', 0.90);
-    await fireSpeechResult(page, 'en-US', 'This should not appear', 0.95);
+    // Fire result after stop — should be ignored
+    await fireSpeechResult(page, 'This should not appear', 0.95);
 
     await page.waitForTimeout(500);
 
@@ -271,14 +239,16 @@ test.describe('Bilingual Voice Dictation', () => {
     expect(translateCalled).toBe(false);
   });
 
-  // ── 8. Dictated text persists and can be manually extended ───────────────
+  // ── 7. Dictated text persists and can be manually extended ─────────────────
 
   test('Dictated text stays in textarea and can be edited by hand', async ({ page }) => {
+    mockTranslateAPI(page, 'Concrete delivery at 9am');
+
     await goToNoteForm(page);
     await page.getByRole('button', { name: 'Start voice dictation' }).click();
     await expect(page.getByRole('button', { name: 'Stop recording' })).toBeVisible();
 
-    await fireSpeechResult(page, 'en-US', 'Concrete delivery at 9am', 0.93);
+    await fireSpeechResult(page, 'Concrete delivery at 9am', 0.93);
 
     await expect(page.locator('#content')).toContainText(
       'Concrete delivery at 9am',
@@ -288,7 +258,7 @@ test.describe('Bilingual Voice Dictation', () => {
     await page.getByRole('button', { name: 'Stop recording' }).click();
     await expect(page.getByRole('button', { name: 'Start voice dictation' })).toBeVisible();
 
-    // Manually append text to the textarea.
+    // Manually append text to the textarea
     await page.locator('#content').click();
     await page.keyboard.press('End');
     await page.keyboard.type(' delayed by one hour');
