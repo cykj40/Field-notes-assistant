@@ -419,7 +419,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
               )}
             </button>
             {showTranslatedBadge && (
-              <span className="absolute -top-7 left-1/2 -translate-x-1/2 rounded-full bg-blue-100 px-3 py-0.5 text-xs font-medium text-blue-700 shadow-sm">
+              <span data-testid="translated-badge" className="absolute -top-7 left-1/2 -translate-x-1/2 rounded-full bg-blue-100 px-3 py-0.5 text-xs font-medium text-blue-700 shadow-sm">
                 🌐 Translated
               </span>
             )}

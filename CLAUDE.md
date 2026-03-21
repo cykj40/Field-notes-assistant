@@ -83,4 +83,20 @@ The Web Speech API stops automatically after a few seconds of silence. Both reco
 npx playwright test
 ```
 
-Tests live in `tests/`. Covers auth, note CRUD, photo upload/display, Google Chat webhook, and multi-user note authorship. Voice dictation is not currently covered by E2E tests (Web Speech API is not available in headless Chromium).
+Tests live in `tests/`. Covers auth, note CRUD, photo upload/display, Google Chat webhook, multi-user note authorship, and bilingual voice dictation.
+
+### Voice dictation tests (`tests/voice-dictation-bilingual.spec.ts`)
+
+The Web Speech API is not available in headless Chromium, so the tests mock it entirely using `page.addInitScript()`. This injects a `MockSpeechRecognition` class into the page before any scripts load — it's the only reliable way to intercept `window.SpeechRecognition` before the component mounts.
+
+**Pattern:**
+1. `mockSpeechRecognition(page)` — called in `beforeEach`, registers the mock via `addInitScript`
+2. `page.route('**/language/translate/v2**', ...)` — intercepts translate API calls per-test
+3. `fireSpeechResult(page, lang, transcript, confidence)` — fires a fake final result on the recognizer instance matching `lang` (instances register themselves in `window.__mockInstances` when `start()` is called)
+
+The 300ms confidence-resolution window is tested by firing both recognizers in rapid succession and asserting which text ends up in the textarea.
+
+**Run just the voice tests:**
+```bash
+npx playwright test tests/voice-dictation-bilingual.spec.ts --project=chromium
+```
