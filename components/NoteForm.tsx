@@ -11,6 +11,7 @@ interface NoteFormProps {
 
 interface SpeechRecognitionAlternativeLike {
   transcript: string;
+  confidence: number;
 }
 
 interface SpeechRecognitionResultLike {
@@ -46,6 +47,25 @@ function getSpeechRecognitionCtor(): SpeechRecognitionCtor | undefined {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition;
 }
 
+async function translateToEnglish(text: string): Promise<string> {
+  try {
+    const key = process.env['NEXT_PUBLIC_GOOGLE_TRANSLATE_API_KEY'];
+    if (!key) return text;
+    const res = await fetch(
+      `https://translation.googleapis.com/language/translate/v2?key=${key}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ q: text, source: 'es', target: 'en', format: 'text' }),
+      }
+    );
+    const data = await res.json();
+    return data?.data?.translations?.[0]?.translatedText ?? text;
+  } catch {
+    return text;
+  }
+}
+
 export default function NoteForm({ initialData, noteId }: NoteFormProps) {
   const router = useRouter();
   const isEdit = !!noteId;
@@ -56,55 +76,167 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
   const [error, setError] = useState('');
   const [recording, setRecording] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const [showTranslatedBadge, setShowTranslatedBadge] = useState(false);
   const [photos, setPhotos] = useState<NotePhoto[]>(initialData?.photos ?? []);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const SR = getSpeechRecognitionCtor();
-    setSpeechSupported(!!SR);
+  const enRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const esRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const isRecordingRef = useRef(false);
+  const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastResultRef = useRef<
+    Record<string, { text: string; confidence: number; ts: number }>
+  >({});
+  // Keep a stable ref to content setter to avoid stale closures in recognition callbacks
+  const setContentRef = useRef(setContent);
+  useEffect(() => { setContentRef.current = setContent; }, [setContent]);
+
+  const showBadge = useCallback(() => {
+    setShowTranslatedBadge(true);
+    setTimeout(() => setShowTranslatedBadge(false), 2000);
   }, []);
 
-  const toggleRecording = useCallback(() => {
+  const appendToNotes = useCallback((text: string) => {
+    setContentRef.current((prev) => (prev ? prev + ' ' + text : text).trim());
+  }, []);
+
+  const resolveWinner = useCallback(
+    (lastResult: Record<string, { text: string; confidence: number; ts: number }>) => {
+      if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current);
+      pendingTimerRef.current = setTimeout(async () => {
+        const en = lastResult['en'];
+        const es = lastResult['es'];
+        delete lastResult['en'];
+        delete lastResult['es'];
+
+        let winner: { text: string; lang: 'en' | 'es' } | null = null;
+
+        if (en && es) {
+          winner =
+            en.confidence >= es.confidence
+              ? { text: en.text, lang: 'en' }
+              : { text: es.text, lang: 'es' };
+        } else if (en) {
+          winner = { text: en.text, lang: 'en' };
+        } else if (es) {
+          winner = { text: es.text, lang: 'es' };
+        }
+
+        if (!winner) return;
+
+        if (winner.lang === 'es') {
+          const translated = await translateToEnglish(winner.text);
+          appendToNotes(translated);
+          showBadge();
+        } else {
+          appendToNotes(winner.text);
+        }
+      }, 300);
+    },
+    [appendToNotes, showBadge]
+  );
+
+  const setupRecognition = useCallback(() => {
     const SR = getSpeechRecognitionCtor();
     if (!SR) return;
 
-    if (recording) {
-      recognitionRef.current?.stop();
-      return;
-    }
+    const en = new SR();
+    en.lang = 'en-US';
+    en.interimResults = false;
+    en.continuous = true;
 
-    const recognition = new SR();
-    recognition.lang = 'en-US';
-    recognition.interimResults = false;
-    recognition.continuous = true;
+    const es = new SR();
+    es.lang = 'es-MX';
+    es.interimResults = false;
+    es.continuous = true;
 
-    recognition.onresult = (event: SpeechRecognitionEventLike) => {
-      const transcript = Array.from(event.results)
-        .slice(event.resultIndex)
-        .filter((r) => r.isFinal)
-        .map((r) => r[0]?.transcript ?? '')
-        .filter(Boolean)
-        .join(' ');
-      if (transcript) {
-        setContent((prev) => (prev ? prev + ' ' + transcript : transcript));
+    en.onresult = (event: SpeechRecognitionEventLike) => {
+      if (!isRecordingRef.current) return;
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (!result) continue;
+        const alt = result[0];
+        if (result.isFinal && alt) {
+          lastResultRef.current['en'] = {
+            text: alt.transcript,
+            confidence: alt.confidence,
+            ts: Date.now(),
+          };
+          resolveWinner(lastResultRef.current);
+        }
       }
     };
 
-    recognition.onerror = () => {
-      setRecording(false);
+    es.onresult = (event: SpeechRecognitionEventLike) => {
+      if (!isRecordingRef.current) return;
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (!result) continue;
+        const alt = result[0];
+        if (result.isFinal && alt) {
+          lastResultRef.current['es'] = {
+            text: alt.transcript,
+            confidence: alt.confidence,
+            ts: Date.now(),
+          };
+          resolveWinner(lastResultRef.current);
+        }
+      }
     };
 
-    recognition.onend = () => {
-      setRecording(false);
+    en.onerror = () => { /* individual recognizer errors are non-fatal */ };
+    es.onerror = () => { /* individual recognizer errors are non-fatal */ };
+
+    // Auto-restart on silence — Web Speech API stops after a pause
+    en.onend = () => {
+      if (isRecordingRef.current) {
+        try { en.start(); } catch { /* already started */ }
+      } else {
+        setRecording(false);
+      }
+    };
+    es.onend = () => {
+      if (isRecordingRef.current) {
+        try { es.start(); } catch { /* already started */ }
+      }
     };
 
-    recognitionRef.current = recognition;
-    recognition.start();
+    enRecognitionRef.current = en;
+    esRecognitionRef.current = es;
+  }, [resolveWinner]);
+
+  useEffect(() => {
+    const SR = getSpeechRecognitionCtor();
+    setSpeechSupported(!!SR);
+    if (SR) setupRecognition();
+  }, [setupRecognition]);
+
+  const startRecording = useCallback(() => {
+    if (!enRecognitionRef.current || !esRecognitionRef.current) {
+      setupRecognition();
+    }
+    isRecordingRef.current = true;
+    try { enRecognitionRef.current?.start(); } catch { /* already started */ }
+    try { esRecognitionRef.current?.start(); } catch { /* already started */ }
     setRecording(true);
-  }, [recording]);
+  }, [setupRecognition]);
+
+  const stopRecording = useCallback(() => {
+    isRecordingRef.current = false;
+    try { enRecognitionRef.current?.stop(); } catch { /* already stopped */ }
+    try { esRecognitionRef.current?.stop(); } catch { /* already stopped */ }
+    setRecording(false);
+  }, []);
+
+  const toggleRecording = useCallback(() => {
+    if (recording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  }, [recording, startRecording, stopRecording]);
 
   const compressImage = useCallback(async (file: File, maxWidth = 1200, quality = 0.7): Promise<string> => {
     return new Promise((resolve) => {
@@ -133,10 +265,8 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       setError('');
 
       try {
-        // Compress the image
         const compressedDataUrl = await compressImage(file);
 
-        // Upload to server
         const blob = await (await fetch(compressedDataUrl)).blob();
         const formData = new FormData();
         formData.append('image', blob, 'photo.jpg');
@@ -156,7 +286,6 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
 
         const { id, dataUrl } = await res.json();
 
-        // Add to photos array
         const newPhoto: NotePhoto = {
           id,
           dataUrl,
@@ -168,7 +297,6 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
         setError(err instanceof Error ? err.message : 'Failed to upload photo');
       } finally {
         setUploadingPhoto(false);
-        // Reset the input
         if (e.target) {
           e.target.value = '';
         }
@@ -192,7 +320,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       }
 
       if (recording) {
-        recognitionRef.current?.stop();
+        stopRecording();
       }
 
       setSaving(true);
@@ -227,7 +355,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       router.push(`/notes/${saved.id}`);
       router.refresh();
     },
-    [title, content, photos, recording, isEdit, noteId, router]
+    [title, content, photos, recording, stopRecording, isEdit, noteId, router]
   );
 
   return (
@@ -265,30 +393,37 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
           suppressHydrationWarning
         />
         {speechSupported && (
-          <button
-            type="button"
-            onClick={toggleRecording}
-            aria-label={recording ? 'Stop recording' : 'Start voice dictation'}
-            className={[
-              'mt-2 flex w-full items-center justify-center gap-2 rounded-lg',
-              'min-h-[48px] text-sm font-semibold transition-colors',
-              recording
-                ? 'animate-pulse bg-red-600 text-white hover:bg-red-700 active:bg-red-800'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300',
-            ].join(' ')}
-          >
-            {recording ? (
-              <>
-                <MicOffIcon />
-                Stop Recording
-              </>
-            ) : (
-              <>
-                <MicIcon />
-                Dictate
-              </>
+          <div className="relative mt-2">
+            <button
+              type="button"
+              onClick={toggleRecording}
+              aria-label={recording ? 'Stop recording' : 'Start voice dictation'}
+              className={[
+                'flex w-full items-center justify-center gap-2 rounded-lg',
+                'min-h-[48px] text-sm font-semibold transition-colors',
+                recording
+                  ? 'animate-pulse bg-red-600 text-white hover:bg-red-700 active:bg-red-800'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300',
+              ].join(' ')}
+            >
+              {recording ? (
+                <>
+                  <MicOffIcon />
+                  Stop Recording
+                </>
+              ) : (
+                <>
+                  <MicIcon />
+                  Dictate
+                </>
+              )}
+            </button>
+            {showTranslatedBadge && (
+              <span className="absolute -top-7 left-1/2 -translate-x-1/2 rounded-full bg-blue-100 px-3 py-0.5 text-xs font-medium text-blue-700 shadow-sm">
+                🌐 Translated
+              </span>
             )}
-          </button>
+          </div>
         )}
       </div>
 
