@@ -32,21 +32,27 @@ async function seedUsers() {
   const briannaPassword = process.env['BRIANNA_PASSWORD'];
   const victorPassword = process.env['VICTOR_PASSWORD'];
   const scottPassword = process.env['SCOTT_PASSWORD'];
+  const johnPassword = process.env['JOHN_PASSWORD'];
+  const marcPassword = process.env['MARC_PASSWORD'];
+  const willyPassword = process.env['WILLY_PASSWORD'];
 
-  if (!cyrusPassword || !briannaPassword || !victorPassword || !scottPassword) {
+  if (!cyrusPassword || !briannaPassword || !victorPassword || !scottPassword || !johnPassword || !marcPassword || !willyPassword) {
     throw new Error(
-      'Missing password environment variables. Required: CYRUS_PASSWORD, BRIANNA_PASSWORD, VICTOR_PASSWORD, SCOTT_PASSWORD'
+      'Missing password environment variables. Required: CYRUS_PASSWORD, BRIANNA_PASSWORD, VICTOR_PASSWORD, SCOTT_PASSWORD, JOHN_PASSWORD, MARC_PASSWORD, WILLY_PASSWORD'
     );
   }
 
   console.log('Hashing passwords...');
 
   // Hash all passwords
-  const [cyrusHash, briannaHash, victorHash, scottHash] = await Promise.all([
+  const [cyrusHash, briannaHash, victorHash, scottHash, johnHash, marcHash, willyHash] = await Promise.all([
     bcrypt.hash(cyrusPassword, SALT_ROUNDS),
     bcrypt.hash(briannaPassword, SALT_ROUNDS),
     bcrypt.hash(victorPassword, SALT_ROUNDS),
     bcrypt.hash(scottPassword, SALT_ROUNDS),
+    bcrypt.hash(johnPassword, SALT_ROUNDS),
+    bcrypt.hash(marcPassword, SALT_ROUNDS),
+    bcrypt.hash(willyPassword, SALT_ROUNDS),
   ]);
 
   console.log('Upserting users...');
@@ -57,6 +63,9 @@ async function seedUsers() {
     { name: 'Brianna', passwordHash: briannaHash, role: 'supervisor' },
     { name: 'Victor', passwordHash: victorHash, role: 'supervisor' },
     { name: 'Scott', passwordHash: scottHash, role: 'supervisor' },
+    { name: 'John', passwordHash: johnHash, role: 'supervisor' },
+    { name: 'Marc', passwordHash: marcHash, role: 'supervisor' },
+    { name: 'Willy', passwordHash: willyHash, role: 'supervisor' },
   ];
 
   // Upsert each user (insert or update on conflict)
@@ -78,6 +87,9 @@ async function seedUsers() {
   console.log('  - Brianna (supervisor)');
   console.log('  - Victor (supervisor)');
   console.log('  - Scott (supervisor)');
+  console.log('  - John (supervisor)');
+  console.log('  - Marc (supervisor)');
+  console.log('  - Willy (supervisor)');
 }
 
 seedUsers()
