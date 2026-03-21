@@ -20,7 +20,7 @@ Mobile-first Next.js 15 PWA for field supervisors to record voice-dictated notes
 | `NEXT_PUBLIC_FIELD_NOTES_API_KEY` | Yes | Same value as above — sent as `x-api-key` from browser |
 | `SESSION_SECRET` | Yes | Min-32-char secret for iron-session cookie encryption |
 | `NEXT_PUBLIC_APP_URL` | Yes | Base URL (`https://your-app.vercel.app` in prod, `http://localhost:3000` in dev) |
-| `NEXT_PUBLIC_GOOGLE_TRANSLATE_API_KEY` | Optional | Legacy translation key; current voice dictation no longer depends on it |
+| `OPENAI_API_KEY` | Yes | OpenAI key for Whisper audio transcription |
 
 Generate `FIELD_NOTES_API_KEY` / `SESSION_SECRET`:
 ```
@@ -31,29 +31,12 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ## Bilingual Voice Dictation
 
-### How It Works
-
-Voice dictation now lives in [`hooks/useVoiceRecognition.ts`](./hooks/useVoiceRecognition.ts) and is consumed only by [`components/NoteForm.tsx`](./components/NoteForm.tsx). There is no separate `VoiceRecorder` component in the current app.
-
-**Pattern: lazy-init `SpeechRecognition` + explicit language mode**
-
-The recognizer is created lazily inside the hook's `start()` method so the browser sees it as part of the direct user click. This avoids stale-ref / remount issues from pre-initializing recognition in an effect.
-
-`NoteForm` shows a clean two-button language mode above the mic:
-- `English` -> `en-US`
-- `Espanol` -> `es-ES`
-
-`es-ES` is used (not `es-MX`) because it is the most universally supported Spanish locale across Chrome, Safari, and Android WebView. `es-MX` gets silently rejected on many browser/OS combos and returns no results.
-
-The selected language tells the recognizer what language to expect before recording starts. The resulting transcript is appended exactly as spoken, so English stays English and Spanish stays Spanish.
-
-### Real-time transcription with `continuous: true`
-
-`continuous` is set to `true` and `interimResults` is set to `true` for real-time feedback. Text appears as the user speaks rather than waiting for a full utterance to end.
-
-- **Interim results** are shown in a live preview below the mic button (`…` suffix, italic gray text). They are not written to the textarea.
-- **Final results** replace the interim preview and are appended permanently to the textarea.
-- The `onend` restart loop is removed — `continuous: true` keeps the recognizer running without restarts. Only `onerror` (network/no-speech errors) triggers a manual restart after 300 ms.
+Voice dictation uses OpenAI Whisper (`whisper-1`) via `/app/api/transcribe/route.ts`.
+The user taps the mic button to record, taps again to transcribe. Whisper
+auto-detects English and Spanish — no language selection needed.
+`MediaRecorder` captures audio in the browser (`webm/opus` preferred).
+Requires `OPENAI_API_KEY` in environment variables.
+Cost: $0.006/minute of audio — negligible for field note use.
 
 ### PWA cache note
 
@@ -71,13 +54,13 @@ Tests live in `tests/`. Covers auth, note CRUD, photo upload/display, Google Cha
 
 ### Voice dictation tests (`tests/voice-dictation-bilingual.spec.ts`)
 
-The Web Speech API is not available in headless Chromium, so the tests mock it entirely using `page.addInitScript()`.
+The browser microphone and Whisper transcription are mocked in Playwright.
 
 **Pattern:**
-1. `mockSpeechRecognition(page)` registers the lazy-init recognizer mock and tracks `window.__mockStartCount`
-2. `setBrowserLanguage(page, 'en-US' | 'es-ES')` sets the default browser language before the page loads
-3. `goToNoteForm(page, user)` opens the note form for any seeded user
-4. `fireSpeechResult(page, transcript)` drives final transcripts into the active recognizer instance
+1. `mockMediaRecorder(page)` replaces `MediaRecorder` and `getUserMedia`
+2. `mockTranscribeAPI(page, transcript)` intercepts `/api/transcribe`
+3. `goToNoteForm(page, user)` opens the note form for an authenticated user
+4. Tests assert on recording, transcribing, and final textarea content
 
 **Run just the voice tests:**
 ```bash

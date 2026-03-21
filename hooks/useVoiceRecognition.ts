@@ -3,115 +3,118 @@
 import { useRef, useState, useCallback } from 'react';
 
 interface UseVoiceRecognitionOptions {
-  lang: 'en-US' | 'es-ES';
   onResult: (text: string) => void;
-  onInterimResult?: (text: string) => void;
   onError?: (error: string) => void;
 }
 
-export function useVoiceRecognition({ lang, onResult, onInterimResult, onError }: UseVoiceRecognitionOptions) {
+export function useVoiceRecognition({ onResult, onError }: UseVoiceRecognitionOptions) {
   const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
-  const recognitionRef = useRef<any>(null);
-  const isRecordingRef = useRef(false);
 
-  const getRecognition = useCallback(() => {
-    if (recognitionRef.current) {
-      recognitionRef.current.lang = lang;
-      return recognitionRef.current;
-    }
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const onResultRef = useRef(onResult);
+  const onErrorRef = useRef(onError);
 
-    const SR =
-      typeof window !== 'undefined'
-        ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-        : null;
+  onResultRef.current = onResult;
+  onErrorRef.current = onError;
 
-    if (!SR) {
+  const start = useCallback(async () => {
+    if (!navigator?.mediaDevices?.getUserMedia) {
       setIsSupported(false);
-      return null;
+      return;
     }
 
-    const recognition = new SR();
-    recognition.lang = lang;
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
 
-    recognition.onresult = (event: any) => {
-      if (!isRecordingRef.current) return;
+      const mimeType = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus',
+        'audio/mp4',
+      ].find((type) => MediaRecorder.isTypeSupported(type)) ?? '';
 
-      let interimTranscript = '';
-      let finalTranscript = '';
+      const recorder = new MediaRecorder(
+        stream,
+        mimeType ? { mimeType } : undefined
+      );
+      mediaRecorderRef.current = recorder;
+      chunksRef.current = [];
 
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        const text = result[0]?.transcript ?? '';
-        if (result.isFinal) {
-          finalTranscript += text;
-        } else {
-          interimTranscript += text;
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunksRef.current.push(e.data);
         }
-      }
+      };
 
-      if (finalTranscript.trim()) {
-        onResult(finalTranscript.trim());
-      }
-      if (interimTranscript.trim()) {
-        onInterimResult?.(interimTranscript.trim());
-      }
-    };
+      recorder.onstop = async () => {
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
 
-    recognition.onerror = (event: any) => {
-      console.error('[voice] error:', event.error);
-      if (event.error === 'not-allowed') {
+        const blob = new Blob(chunksRef.current, {
+          type: mimeType || 'audio/webm',
+        });
+        chunksRef.current = [];
+
+        if (blob.size < 1000) return;
+
+        setIsTranscribing(true);
+        try {
+          const form = new FormData();
+          form.append('audio', blob, 'recording.webm');
+
+          const res = await fetch('/api/transcribe', {
+            method: 'POST',
+            headers: {
+              'x-api-key': process.env['NEXT_PUBLIC_FIELD_NOTES_API_KEY'] ?? '',
+            },
+            body: form,
+          });
+
+          if (!res.ok) {
+            const data = await res.json();
+            onErrorRef.current?.(data.error ?? 'Transcription failed');
+            return;
+          }
+
+          const data = await res.json();
+          if (data.transcript?.trim()) {
+            onResultRef.current(data.transcript.trim());
+          }
+        } catch (err) {
+          console.error('[voice] transcription fetch error:', err);
+          onErrorRef.current?.('Transcription failed');
+        } finally {
+          setIsTranscribing(false);
+        }
+      };
+
+      recorder.start();
+      setIsRecording(true);
+    } catch (err: any) {
+      console.error('[voice] getUserMedia error:', err);
+      if (
+        err.name === 'NotAllowedError' ||
+        err.name === 'PermissionDeniedError'
+      ) {
         setIsSupported(false);
-        onError?.('Microphone permission denied');
-        setIsRecording(false);
-        isRecordingRef.current = false;
-        return;
+        onErrorRef.current?.('Microphone permission denied');
+      } else {
+        onErrorRef.current?.('Could not start recording');
       }
-
-      if (isRecordingRef.current) {
-        setTimeout(() => {
-          try {
-            recognition.start();
-          } catch {}
-        }, 300);
-      }
-    };
-
-    recognition.onend = () => {
-      if (!isRecordingRef.current) {
-        setIsRecording(false);
-      }
-    };
-
-    recognitionRef.current = recognition;
-    return recognition;
-  }, [lang, onResult, onInterimResult, onError]);
-
-  const start = useCallback(() => {
-    const recognition = getRecognition();
-    if (!recognition) return;
-
-    recognition.lang = lang;
-    isRecordingRef.current = true;
-    setIsRecording(true);
-
-    try {
-      recognition.start();
-    } catch (e) {
-      console.error('[voice] start failed:', e);
     }
-  }, [getRecognition, lang]);
-
-  const stop = useCallback(() => {
-    isRecordingRef.current = false;
-    setIsRecording(false);
-    try {
-      recognitionRef.current?.stop();
-    } catch {}
   }, []);
 
-  return { isRecording, isSupported, start, stop };
+  const stop = useCallback(() => {
+    if (mediaRecorderRef.current?.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+  }, []);
+
+  return { isRecording, isTranscribing, isSupported, start, stop };
 }

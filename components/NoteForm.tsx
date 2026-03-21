@@ -10,18 +10,6 @@ interface NoteFormProps {
   noteId?: string;
 }
 
-function getDefaultVoiceLanguage(): 'en-US' | 'es-ES' {
-  if (typeof navigator === 'undefined') {
-    return 'en-US';
-  }
-
-  const browserPrefersSpanish =
-    navigator.language?.toLowerCase().startsWith('es') ||
-    navigator.languages?.some((language) => language.toLowerCase().startsWith('es'));
-
-  return browserPrefersSpanish ? 'es-ES' : 'en-US';
-}
-
 export default function NoteForm({ initialData, noteId }: NoteFormProps) {
   const router = useRouter();
   const isEdit = !!noteId;
@@ -32,8 +20,6 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
   const [error, setError] = useState('');
   const [photos, setPhotos] = useState<NotePhoto[]>(initialData?.photos ?? []);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [voiceLanguage, setVoiceLanguage] = useState<'en-US' | 'es-ES'>(getDefaultVoiceLanguage);
-  const [interimText, setInterimText] = useState('');
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -41,22 +27,12 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
     setContent((prev) => (prev ? prev + ' ' + text : text).trim());
   }, []);
 
-  const { isRecording, isSupported, start, stop } = useVoiceRecognition({
-    lang: voiceLanguage,
+  const { isRecording, isTranscribing, isSupported, start, stop } = useVoiceRecognition({
     onResult: (text) => {
-      setInterimText('');
       appendToNotes(text);
-    },
-    onInterimResult: (text) => {
-      setInterimText(text);
     },
     onError: (voiceError) => console.error('[voice]', voiceError),
   });
-
-  const handleStop = useCallback(() => {
-    setInterimText('');
-    stop();
-  }, [stop]);
 
   const compressImage = useCallback(async (file: File, maxWidth = 1200, quality = 0.7): Promise<string> => {
     return new Promise((resolve) => {
@@ -140,7 +116,10 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       }
 
       if (isRecording) {
-        handleStop();
+        stop();
+      }
+      if (isTranscribing) {
+        return;
       }
 
       setSaving(true);
@@ -176,7 +155,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       router.push(`/notes/${saved.id}`);
       router.refresh();
     },
-    [title, content, photos, isRecording, handleStop, isEdit, noteId, router]
+    [title, content, photos, isRecording, isTranscribing, stop, isEdit, noteId, router]
   );
 
   return (
@@ -212,71 +191,40 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
           suppressHydrationWarning
         />
         {isSupported ? (
-          <div className="mt-2 space-y-2">
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setVoiceLanguage('en-US')}
-                disabled={isRecording}
-                aria-pressed={voiceLanguage === 'en-US'}
-                className={[
-                  'rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
-                  voiceLanguage === 'en-US'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300',
-                  isRecording ? 'cursor-not-allowed opacity-60' : '',
-                ].join(' ')}
-              >
-                English
-              </button>
-              <button
-                type="button"
-                onClick={() => setVoiceLanguage('es-ES')}
-                disabled={isRecording}
-                aria-pressed={voiceLanguage === 'es-ES'}
-                className={[
-                  'rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
-                  voiceLanguage === 'es-ES'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300',
-                  isRecording ? 'cursor-not-allowed opacity-60' : '',
-                ].join(' ')}
-              >
-                Espanol
-              </button>
-            </div>
+          <div className="mt-2">
             <button
               type="button"
-              onClick={isRecording ? handleStop : start}
+              onClick={isRecording ? stop : start}
+              disabled={isTranscribing}
               aria-label={isRecording ? 'Stop recording' : 'Start voice dictation'}
               className={[
                 'flex w-full items-center justify-center gap-2 rounded-lg',
                 'min-h-[48px] text-sm font-semibold transition-colors',
                 isRecording
                   ? 'animate-pulse bg-red-600 text-white hover:bg-red-700 active:bg-red-800'
+                  : isTranscribing
+                  ? 'bg-yellow-500 text-white cursor-wait'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300',
               ].join(' ')}
             >
               {isRecording ? (
-                <>
-                  <MicOffIcon />
-                  Stop Recording
-                </>
+                <><MicOffIcon /> Stop Recording</>
+              ) : isTranscribing ? (
+                <>Transcribing...</>
               ) : (
-                <>
-                  <MicIcon />
-                  {voiceLanguage === 'es-ES' ? 'Dictate in Espanol' : 'Dictate in English'}
-                </>
+                <><MicIcon /> Dictate</>
               )}
             </button>
-            {isRecording && interimText && (
-              <p className="mt-2 text-sm text-gray-500 italic px-1 min-h-[20px]">
-                {interimText}…
+            {isTranscribing && (
+              <p className="mt-1 text-xs text-center text-gray-500">
+                Processing audio...
               </p>
             )}
           </div>
         ) : (
-          <p className="mt-2 text-sm text-gray-500">Voice not supported on this browser</p>
+          <p className="mt-2 text-sm text-gray-500">
+            Voice dictation not supported on this browser
+          </p>
         )}
       </div>
 

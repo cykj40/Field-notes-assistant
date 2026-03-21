@@ -1,79 +1,65 @@
 import { test, expect, Page } from '@playwright/test';
 import { login, USERS, UserCredentials } from './auth.setup';
 
-async function mockSpeechRecognition(page: Page) {
-  await page.addInitScript(() => {
-    class MockSpeechRecognition {
-      continuous = false;
-      interimResults = false;
-      lang = '';
-      maxAlternatives = 1;
-      onresult: ((e: any) => void) | null = null;
-      onend: (() => void) | null = null;
-      onerror: ((e: any) => void) | null = null;
-
-      start() {
-        (window as any).__mockInstance = this;
-        (window as any).__mockStartCount = ((window as any).__mockStartCount ?? 0) + 1;
-      }
-
-      stop() {
-        this.onend?.();
-      }
-
-      fireResult(transcript: string) {
-        const resultItem = Object.assign([{ transcript, confidence: 0.95 }], { isFinal: true });
-        const event = { resultIndex: 0, results: [resultItem] };
-        this.onresult?.(event);
-      }
-
-      fireError(error: string) {
-        this.onerror?.({ error });
-      }
-    }
-
-    (window as any).__mockInstance = null;
-    (window as any).__mockStartCount = 0;
-    (window as any).SpeechRecognition = MockSpeechRecognition;
-    (window as any).webkitSpeechRecognition = MockSpeechRecognition;
+async function mockTranscribeAPI(page: Page, transcript: string) {
+  await page.route('**/api/transcribe**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ transcript }),
+    });
   });
 }
 
-async function setBrowserLanguage(page: Page, language: 'en-US' | 'es-ES') {
-  await page.addInitScript((value) => {
-    Object.defineProperty(navigator, 'language', {
-      configurable: true,
-      get: () => value,
+async function mockTranscribeAPIError(page: Page) {
+  await page.route('**/api/transcribe**', async (route) => {
+    await route.fulfill({
+      status: 502,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'Transcription failed' }),
     });
+  });
+}
 
-    Object.defineProperty(navigator, 'languages', {
-      configurable: true,
-      get: () => [value],
+async function mockMediaRecorder(page: Page) {
+  await page.addInitScript(() => {
+    class MockMediaRecorder {
+      state = 'inactive';
+      ondataavailable: ((e: any) => void) | null = null;
+      onstop: (() => void) | null = null;
+
+      constructor(public stream: any, public options?: any) {}
+
+      start() {
+        this.state = 'recording';
+        (window as any).__mockRecorder = this;
+        setTimeout(() => {
+          this.ondataavailable?.({
+            data: new Blob(['fake-audio-data-padded-to-1500-bytes'.padEnd(1500, 'x')],
+              { type: 'audio/webm' })
+          });
+        }, 50);
+      }
+
+      stop() {
+        this.state = 'inactive';
+        this.onstop?.();
+      }
+
+      static isTypeSupported() { return true; }
+    }
+
+    (window as any).MediaRecorder = MockMediaRecorder;
+
+    Object.defineProperty(navigator, 'mediaDevices', {
+      writable: true,
+      value: {
+        getUserMedia: async () => ({
+          getTracks: () => [{ stop: () => {} }],
+        }),
+      },
     });
-  }, language);
-}
-
-async function fireSpeechResult(page: Page, transcript: string) {
-  await page.evaluate((value) => {
-    const instance = (window as any).__mockInstance;
-    if (!instance) throw new Error('No active mock SpeechRecognition instance');
-    instance.fireResult(value);
-  }, transcript);
-}
-
-async function fireSpeechError(page: Page, error: string) {
-  await page.evaluate((value) => {
-    const instance = (window as any).__mockInstance;
-    if (!instance) throw new Error('No active mock SpeechRecognition instance');
-    instance.fireError(value);
-  }, error);
-}
-
-async function getRecognitionSnapshot(page: Page) {
-  return page.evaluate(() => ({
-    lang: (window as any).__mockInstance?.lang ?? null,
-    startCount: (window as any).__mockStartCount ?? 0,
-  }));
+  });
 }
 
 async function goToNoteForm(page: Page, credentials: UserCredentials = USERS.cyrus) {
@@ -85,105 +71,95 @@ async function goToNoteForm(page: Page, credentials: UserCredentials = USERS.cyr
 
 test.describe('Voice Dictation', () => {
   test.beforeEach(async ({ page }) => {
-    await mockSpeechRecognition(page);
+    await mockMediaRecorder(page);
   });
 
-  test('mic button click reaches start() synchronously', async ({ page }) => {
-    const voiceConsoleErrors: string[] = [];
-    page.on('console', (msg) => {
-      if (msg.type() === 'error' && msg.text().includes('[voice]')) {
-        voiceConsoleErrors.push(msg.text());
-      }
-    });
-
+  test('mic button starts recording and shows Stop state', async ({ page }) => {
+    await mockTranscribeAPI(page, '');
     await goToNoteForm(page);
     await page.getByRole('button', { name: 'Start voice dictation' }).click();
     await expect(page.getByRole('button', { name: 'Stop recording' })).toBeVisible();
-
-    const snapshot = await getRecognitionSnapshot(page);
-    expect(snapshot.startCount).toBe(1);
-    expect(voiceConsoleErrors).toEqual([]);
   });
 
-  test('defaults to English when the browser prefers English', async ({ page }) => {
-    await setBrowserLanguage(page, 'en-US');
-    await goToNoteForm(page);
-    await page.getByRole('button', { name: 'Start voice dictation' }).click();
-
-    const snapshot = await getRecognitionSnapshot(page);
-    expect(snapshot.lang).toBe('en-US');
-  });
-
-  test('defaults to Spanish when the browser prefers Spanish', async ({ page }) => {
-    await setBrowserLanguage(page, 'es-ES');
-    await goToNoteForm(page);
-    await page.getByRole('button', { name: 'Start voice dictation' }).click();
-
-    const snapshot = await getRecognitionSnapshot(page);
-    expect(snapshot.lang).toBe('es-ES');
-  });
-
-  test('language selector switches recognition language before recording', async ({ page }) => {
-    await setBrowserLanguage(page, 'en-US');
-    await goToNoteForm(page, USERS.victor);
-    await page.getByRole('button', { name: 'Espanol' }).click();
-    await page.getByRole('button', { name: 'Start voice dictation' }).click();
-
-    const snapshot = await getRecognitionSnapshot(page);
-    expect(snapshot.lang).toBe('es-ES');
-  });
-
-  test('English speech appends the spoken English text', async ({ page }) => {
-    await goToNoteForm(page);
-    await page.getByRole('button', { name: 'Start voice dictation' }).click();
-    await fireSpeechResult(page, 'Poured foundation on north wall');
-
-    await expect(page.locator('#content')).toHaveValue('Poured foundation on north wall');
-  });
-
-  test('Spanish speech appends the spoken Spanish text', async ({ page }) => {
-    await goToNoteForm(page, USERS.victor);
-    await page.getByRole('button', { name: 'Espanol' }).click();
-    await page.getByRole('button', { name: 'Start voice dictation' }).click();
-    await fireSpeechResult(page, 'Terminamos el encofrado');
-
-    await expect(page.locator('#content')).toHaveValue('Terminamos el encofrado');
-  });
-
-  test('results fired after stopping are ignored', async ({ page }) => {
+  test('stopping recording shows transcribing state', async ({ page }) => {
+    await mockTranscribeAPI(page, 'Test transcript');
     await goToNoteForm(page);
     await page.getByRole('button', { name: 'Start voice dictation' }).click();
     await page.getByRole('button', { name: 'Stop recording' }).click();
-    await fireSpeechResult(page, 'This should not appear');
+    await expect(page.locator('text=Transcribing')).toBeVisible();
+  });
 
+  test('transcript appears in textarea after transcription', async ({ page }) => {
+    await mockTranscribeAPI(page, 'Poured foundation on north wall __PLAYWRIGHT_TEST__');
+    await goToNoteForm(page);
+    await page.getByRole('button', { name: 'Start voice dictation' }).click();
+    await page.getByRole('button', { name: 'Stop recording' }).click();
+    await expect(page.locator('#content')).toHaveValue(
+      'Poured foundation on north wall __PLAYWRIGHT_TEST__',
+      { timeout: 10000 }
+    );
+  });
+
+  test('spanish transcript appears correctly', async ({ page }) => {
+    await mockTranscribeAPI(page, 'Terminamos el encofrado __PLAYWRIGHT_TEST__');
+    await goToNoteForm(page, USERS.victor);
+    await page.getByRole('button', { name: 'Start voice dictation' }).click();
+    await page.getByRole('button', { name: 'Stop recording' }).click();
+    await expect(page.locator('#content')).toHaveValue(
+      'Terminamos el encofrado __PLAYWRIGHT_TEST__',
+      { timeout: 10000 }
+    );
+  });
+
+  test('empty transcript does not append anything', async ({ page }) => {
+    await mockTranscribeAPI(page, '');
+    await goToNoteForm(page);
+    await page.getByRole('button', { name: 'Start voice dictation' }).click();
+    await page.getByRole('button', { name: 'Stop recording' }).click();
     await page.waitForTimeout(500);
     await expect(page.locator('#content')).toHaveValue('');
   });
 
-  test('onerror restarts recognition while still recording', async ({ page }) => {
+  test('transcription error does not crash the app', async ({ page }) => {
+    await mockTranscribeAPIError(page);
     await goToNoteForm(page);
     await page.getByRole('button', { name: 'Start voice dictation' }).click();
-
-    await fireSpeechError(page, 'no-speech');
-    await page.waitForTimeout(450);
-
-    const snapshot = await getRecognitionSnapshot(page);
-    expect(snapshot.startCount).toBeGreaterThan(1);
-    await expect(page.getByRole('button', { name: 'Stop recording' })).toBeVisible();
+    await page.getByRole('button', { name: 'Stop recording' }).click();
+    await page.waitForTimeout(1000);
+    await expect(page.locator('form')).toBeVisible();
+    await expect(page.locator('#content')).toHaveValue('');
   });
 
-  test('dictated text can still be extended manually after stopping', async ({ page }) => {
+  test('dictated text can be edited manually after transcription', async ({ page }) => {
+    await mockTranscribeAPI(page, 'Concrete delivery at 9am');
     await goToNoteForm(page);
     await page.getByRole('button', { name: 'Start voice dictation' }).click();
-    await fireSpeechResult(page, 'Concrete delivery at 9am');
-
-    await expect(page.locator('#content')).toHaveValue('Concrete delivery at 9am');
-
     await page.getByRole('button', { name: 'Stop recording' }).click();
+    await expect(page.locator('#content')).toHaveValue(
+      'Concrete delivery at 9am',
+      { timeout: 10000 }
+    );
     await page.locator('#content').click();
     await page.keyboard.press('End');
     await page.keyboard.type(' delayed by one hour');
+    await expect(page.locator('#content')).toHaveValue(
+      'Concrete delivery at 9am delayed by one hour'
+    );
+  });
 
-    await expect(page.locator('#content')).toHaveValue('Concrete delivery at 9am delayed by one hour');
+  test('multiple dictations append correctly', async ({ page }) => {
+    await mockTranscribeAPI(page, 'First sentence');
+    await goToNoteForm(page);
+    await page.getByRole('button', { name: 'Start voice dictation' }).click();
+    await page.getByRole('button', { name: 'Stop recording' }).click();
+    await expect(page.locator('#content')).toHaveValue('First sentence', { timeout: 10000 });
+
+    await mockTranscribeAPI(page, 'Second sentence');
+    await page.getByRole('button', { name: 'Start voice dictation' }).click();
+    await page.getByRole('button', { name: 'Stop recording' }).click();
+    await expect(page.locator('#content')).toHaveValue(
+      'First sentence Second sentence',
+      { timeout: 10000 }
+    );
   });
 });
