@@ -3,12 +3,13 @@
 import { useRef, useState, useCallback } from 'react';
 
 interface UseVoiceRecognitionOptions {
-  lang: 'en-US' | 'es-MX';
+  lang: 'en-US' | 'es-ES';
   onResult: (text: string) => void;
+  onInterimResult?: (text: string) => void;
   onError?: (error: string) => void;
 }
 
-export function useVoiceRecognition({ lang, onResult, onError }: UseVoiceRecognitionOptions) {
+export function useVoiceRecognition({ lang, onResult, onInterimResult, onError }: UseVoiceRecognitionOptions) {
   const [isRecording, setIsRecording] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
   const recognitionRef = useRef<any>(null);
@@ -32,15 +33,31 @@ export function useVoiceRecognition({ lang, onResult, onError }: UseVoiceRecogni
 
     const recognition = new SR();
     recognition.lang = lang;
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.continuous = true;
+    recognition.interimResults = true;
     recognition.maxAlternatives = 1;
 
     recognition.onresult = (event: any) => {
       if (!isRecordingRef.current) return;
-      const transcript = event.results[0]?.[0]?.transcript;
-      if (transcript) {
-        onResult(transcript.trim());
+
+      let interimTranscript = '';
+      let finalTranscript = '';
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        const text = result[0]?.transcript ?? '';
+        if (result.isFinal) {
+          finalTranscript += text;
+        } else {
+          interimTranscript += text;
+        }
+      }
+
+      if (finalTranscript.trim()) {
+        onResult(finalTranscript.trim());
+      }
+      if (interimTranscript.trim()) {
+        onInterimResult?.(interimTranscript.trim());
       }
     };
 
@@ -64,21 +81,14 @@ export function useVoiceRecognition({ lang, onResult, onError }: UseVoiceRecogni
     };
 
     recognition.onend = () => {
-      if (isRecordingRef.current) {
-        setTimeout(() => {
-          try {
-            recognition.lang = lang;
-            recognition.start();
-          } catch {}
-        }, 100);
-      } else {
+      if (!isRecordingRef.current) {
         setIsRecording(false);
       }
     };
 
     recognitionRef.current = recognition;
     return recognition;
-  }, [lang, onResult, onError]);
+  }, [lang, onResult, onInterimResult, onError]);
 
   const start = useCallback(() => {
     const recognition = getRecognition();

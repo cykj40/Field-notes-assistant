@@ -39,7 +39,7 @@ async function mockSpeechRecognition(page: Page) {
   });
 }
 
-async function setBrowserLanguage(page: Page, language: 'en-US' | 'es-MX') {
+async function setBrowserLanguage(page: Page, language: 'en-US' | 'es-ES') {
   await page.addInitScript((value) => {
     Object.defineProperty(navigator, 'language', {
       configurable: true,
@@ -115,12 +115,12 @@ test.describe('Voice Dictation', () => {
   });
 
   test('defaults to Spanish when the browser prefers Spanish', async ({ page }) => {
-    await setBrowserLanguage(page, 'es-MX');
+    await setBrowserLanguage(page, 'es-ES');
     await goToNoteForm(page);
     await page.getByRole('button', { name: 'Start voice dictation' }).click();
 
     const snapshot = await getRecognitionSnapshot(page);
-    expect(snapshot.lang).toBe('es-MX');
+    expect(snapshot.lang).toBe('es-ES');
   });
 
   test('language selector switches recognition language before recording', async ({ page }) => {
@@ -130,7 +130,7 @@ test.describe('Voice Dictation', () => {
     await page.getByRole('button', { name: 'Start voice dictation' }).click();
 
     const snapshot = await getRecognitionSnapshot(page);
-    expect(snapshot.lang).toBe('es-MX');
+    expect(snapshot.lang).toBe('es-ES');
   });
 
   test('English speech appends the spoken English text', async ({ page }) => {
@@ -160,7 +160,7 @@ test.describe('Voice Dictation', () => {
     await expect(page.locator('#content')).toHaveValue('');
   });
 
-  test('onend/onerror restart while still recording', async ({ page }) => {
+  test('onerror restarts recognition while still recording', async ({ page }) => {
     await goToNoteForm(page);
     await page.getByRole('button', { name: 'Start voice dictation' }).click();
 

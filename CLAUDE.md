@@ -41,13 +41,19 @@ The recognizer is created lazily inside the hook's `start()` method so the brows
 
 `NoteForm` shows a clean two-button language mode above the mic:
 - `English` -> `en-US`
-- `Espanol` -> `es-MX`
+- `Espanol` -> `es-ES`
+
+`es-ES` is used (not `es-MX`) because it is the most universally supported Spanish locale across Chrome, Safari, and Android WebView. `es-MX` gets silently rejected on many browser/OS combos and returns no results.
 
 The selected language tells the recognizer what language to expect before recording starts. The resulting transcript is appended exactly as spoken, so English stays English and Spanish stays Spanish.
 
-### Auto-restart behavior
+### Real-time transcription with `continuous: true`
 
-`continuous` is intentionally set to `false` for better mobile reliability. Mobile browsers stop `SpeechRecognition` after each utterance, so the hook restarts the recognizer from `onend` while recording is still active.
+`continuous` is set to `true` and `interimResults` is set to `true` for real-time feedback. Text appears as the user speaks rather than waiting for a full utterance to end.
+
+- **Interim results** are shown in a live preview below the mic button (`…` suffix, italic gray text). They are not written to the textarea.
+- **Final results** replace the interim preview and are appended permanently to the textarea.
+- The `onend` restart loop is removed — `continuous: true` keeps the recognizer running without restarts. Only `onerror` (network/no-speech errors) triggers a manual restart after 300 ms.
 
 ### PWA cache note
 
@@ -69,7 +75,7 @@ The Web Speech API is not available in headless Chromium, so the tests mock it e
 
 **Pattern:**
 1. `mockSpeechRecognition(page)` registers the lazy-init recognizer mock and tracks `window.__mockStartCount`
-2. `setBrowserLanguage(page, 'en-US' | 'es-MX')` sets the default browser language before the page loads
+2. `setBrowserLanguage(page, 'en-US' | 'es-ES')` sets the default browser language before the page loads
 3. `goToNoteForm(page, user)` opens the note form for any seeded user
 4. `fireSpeechResult(page, transcript)` drives final transcripts into the active recognizer instance
 

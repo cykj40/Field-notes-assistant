@@ -10,7 +10,7 @@ interface NoteFormProps {
   noteId?: string;
 }
 
-function getDefaultVoiceLanguage(): 'en-US' | 'es-MX' {
+function getDefaultVoiceLanguage(): 'en-US' | 'es-ES' {
   if (typeof navigator === 'undefined') {
     return 'en-US';
   }
@@ -19,7 +19,7 @@ function getDefaultVoiceLanguage(): 'en-US' | 'es-MX' {
     navigator.language?.toLowerCase().startsWith('es') ||
     navigator.languages?.some((language) => language.toLowerCase().startsWith('es'));
 
-  return browserPrefersSpanish ? 'es-MX' : 'en-US';
+  return browserPrefersSpanish ? 'es-ES' : 'en-US';
 }
 
 export default function NoteForm({ initialData, noteId }: NoteFormProps) {
@@ -32,7 +32,8 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
   const [error, setError] = useState('');
   const [photos, setPhotos] = useState<NotePhoto[]>(initialData?.photos ?? []);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [voiceLanguage, setVoiceLanguage] = useState<'en-US' | 'es-MX'>(getDefaultVoiceLanguage);
+  const [voiceLanguage, setVoiceLanguage] = useState<'en-US' | 'es-ES'>(getDefaultVoiceLanguage);
+  const [interimText, setInterimText] = useState('');
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -43,10 +44,19 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
   const { isRecording, isSupported, start, stop } = useVoiceRecognition({
     lang: voiceLanguage,
     onResult: (text) => {
+      setInterimText('');
       appendToNotes(text);
+    },
+    onInterimResult: (text) => {
+      setInterimText(text);
     },
     onError: (voiceError) => console.error('[voice]', voiceError),
   });
+
+  const handleStop = useCallback(() => {
+    setInterimText('');
+    stop();
+  }, [stop]);
 
   const compressImage = useCallback(async (file: File, maxWidth = 1200, quality = 0.7): Promise<string> => {
     return new Promise((resolve) => {
@@ -130,7 +140,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       }
 
       if (isRecording) {
-        stop();
+        handleStop();
       }
 
       setSaving(true);
@@ -166,7 +176,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       router.push(`/notes/${saved.id}`);
       router.refresh();
     },
-    [title, content, photos, isRecording, stop, isEdit, noteId, router]
+    [title, content, photos, isRecording, handleStop, isEdit, noteId, router]
   );
 
   return (
@@ -221,12 +231,12 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
               </button>
               <button
                 type="button"
-                onClick={() => setVoiceLanguage('es-MX')}
+                onClick={() => setVoiceLanguage('es-ES')}
                 disabled={isRecording}
-                aria-pressed={voiceLanguage === 'es-MX'}
+                aria-pressed={voiceLanguage === 'es-ES'}
                 className={[
                   'rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
-                  voiceLanguage === 'es-MX'
+                  voiceLanguage === 'es-ES'
                     ? 'bg-green-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300',
                   isRecording ? 'cursor-not-allowed opacity-60' : '',
@@ -237,7 +247,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
             </div>
             <button
               type="button"
-              onClick={isRecording ? stop : start}
+              onClick={isRecording ? handleStop : start}
               aria-label={isRecording ? 'Stop recording' : 'Start voice dictation'}
               className={[
                 'flex w-full items-center justify-center gap-2 rounded-lg',
@@ -255,10 +265,15 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
               ) : (
                 <>
                   <MicIcon />
-                  {voiceLanguage === 'es-MX' ? 'Dictate in Espanol' : 'Dictate in English'}
+                  {voiceLanguage === 'es-ES' ? 'Dictate in Espanol' : 'Dictate in English'}
                 </>
               )}
             </button>
+            {isRecording && interimText && (
+              <p className="mt-2 text-sm text-gray-500 italic px-1 min-h-[20px]">
+                {interimText}…
+              </p>
+            )}
           </div>
         ) : (
           <p className="mt-2 text-sm text-gray-500">Voice not supported on this browser</p>
