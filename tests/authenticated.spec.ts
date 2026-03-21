@@ -84,7 +84,7 @@ test.describe('Authenticated Routes', () => {
 
     // Fill out the form
     await page.fill('input#title', 'Test Location');
-    await page.fill('textarea#content', 'This is a test note created by Playwright');
+    await page.fill('textarea#content', 'This is a test note created by Playwright __PLAYWRIGHT_TEST__');
 
     // Submit the form
     await page.click('button[type="submit"]');
@@ -115,7 +115,7 @@ test.describe('Authenticated Routes', () => {
     // First create a note
     await page.goto('/notes/new');
     await page.fill('input#title', 'Edit Test Location');
-    await page.fill('textarea#content', 'Original content');
+    await page.fill('textarea#content', 'Original content __PLAYWRIGHT_TEST__');
     await page.click('button[type="submit"]');
     await page.waitForURL(/\/notes\/[a-f0-9-]+/);
 
@@ -127,7 +127,7 @@ test.describe('Authenticated Routes', () => {
 
     // Update the note
     await page.fill('input#title', 'Updated Location');
-    await page.fill('textarea#content', 'Updated content');
+    await page.fill('textarea#content', 'Updated content __PLAYWRIGHT_TEST__');
 
     // Save changes
     await page.click('button[type="submit"]');
@@ -158,7 +158,7 @@ test.describe('Authenticated Routes', () => {
     // First create a note
     await page.goto('/notes/new');
     await page.fill('input#title', 'Delete Test Location');
-    await page.fill('textarea#content', 'To be deleted');
+    await page.fill('textarea#content', 'To be deleted __PLAYWRIGHT_TEST__');
     await page.click('button[type="submit"]');
     await page.waitForURL(/\/notes\/[a-f0-9-]+/);
 

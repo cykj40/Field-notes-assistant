@@ -13,7 +13,7 @@ test.describe('Google Chat Webhook Attribution', () => {
     // Create a note
     await page.goto('/notes/new');
     await page.fill('input#title', 'Webhook Attribution Test');
-    await page.fill('textarea#content', 'Testing webhook attribution format');
+    await page.fill('textarea#content', 'Testing webhook attribution format __PLAYWRIGHT_TEST__');
     await page.click('button[type="submit"]');
 
     await page.waitForURL(/\/notes\/[a-f0-9-]+/);
@@ -50,7 +50,7 @@ test.describe('Google Chat Webhook Attribution', () => {
     await page.goto('/notes/new');
     const timestamp = new Date().toISOString();
     await page.fill('input#title', `Webhook Format Test ${timestamp}`);
-    await page.fill('textarea#content', 'Content for webhook formatting test');
+    await page.fill('textarea#content', 'Content for webhook formatting test __PLAYWRIGHT_TEST__');
     await page.click('button[type="submit"]');
 
     await page.waitForURL(/\/notes\/[a-f0-9-]+/);
@@ -79,7 +79,7 @@ test.describe('Google Chat Webhook Attribution', () => {
 
       await page.goto('/notes/new');
       await page.fill('input#title', `${user.username} Webhook Test`);
-      await page.fill('textarea#content', `Note from ${user.username}`);
+      await page.fill('textarea#content', `Note from ${user.username} __PLAYWRIGHT_TEST__`);
       await page.click('button[type="submit"]');
 
       await page.waitForURL(/\/notes\/[a-f0-9-]+/);

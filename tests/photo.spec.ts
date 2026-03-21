@@ -186,7 +186,7 @@ test.describe('Photo Functionality', () => {
             await page.waitForTimeout(1500); // wait for upload + compression
 
             await page.fill('input#title', 'Photo Serve Test');
-            await page.fill('textarea#content', 'Testing photo public serving');
+            await page.fill('textarea#content', 'Testing photo public serving __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
             await page.waitForURL(/\/notes\/[a-f0-9-]+/);
 
@@ -307,7 +307,7 @@ test.describe('Photo Functionality', () => {
             await expect(page.locator('text=/1 photo attached/')).toBeVisible({ timeout: 8000 });
 
             await page.fill('input#title', 'Photo Display Test');
-            await page.fill('textarea#content', 'Verifying photo renders on detail page');
+            await page.fill('textarea#content', 'Verifying photo renders on detail page __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
 
             await page.waitForURL(/\/notes\/[a-f0-9-]+/);
@@ -332,7 +332,7 @@ test.describe('Photo Functionality', () => {
             await injectPhotoFile(page, 'input[type="file"]:not([capture])', jpeg2);
             await expect(page.locator('text=/2 photos attached/')).toBeVisible({ timeout: 8000 });
 
-            await page.fill('input#title', 'Multi-Photo Display Test');
+            await page.fill('input#title', 'Multi-Photo Display Test __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
 
             await page.waitForURL(/\/notes\/[a-f0-9-]+/);
@@ -346,7 +346,7 @@ test.describe('Photo Functionality', () => {
             await page.goto('/notes/new');
 
             await page.fill('input#title', 'No Photo Note');
-            await page.fill('textarea#content', 'This note has no photos');
+            await page.fill('textarea#content', 'This note has no photos __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
 
             await page.waitForURL(/\/notes\/[a-f0-9-]+/);
@@ -367,7 +367,7 @@ test.describe('Photo Functionality', () => {
             await injectPhotoFile(page, 'input[type="file"]:not([capture])', tempJpeg);
             await expect(page.locator('text=/1 photo attached/')).toBeVisible({ timeout: 8000 });
 
-            await page.fill('input#title', 'Edit Photo Preserve Test');
+            await page.fill('input#title', 'Edit Photo Preserve Test __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
             await page.waitForURL(/\/notes\/[a-f0-9-]+/);
 
@@ -394,7 +394,7 @@ test.describe('Photo Functionality', () => {
             await injectPhotoFile(page, 'input[type="file"]:not([capture])', tempJpeg);
             await expect(page.locator('text=/1 photo attached/')).toBeVisible({ timeout: 8000 });
 
-            await page.fill('input#title', 'Add More Photos Test');
+            await page.fill('input#title', 'Add More Photos Test __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
             await page.waitForURL(/\/notes\/[a-f0-9-]+/);
 
@@ -425,7 +425,7 @@ test.describe('Photo Functionality', () => {
             await injectPhotoFile(page, 'input[type="file"]:not([capture])', jpeg2);
             await expect(page.locator('text=/2 photos attached/')).toBeVisible({ timeout: 8000 });
 
-            await page.fill('input#title', 'Remove Photo Edit Test');
+            await page.fill('input#title', 'Remove Photo Edit Test __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
             await page.waitForURL(/\/notes\/[a-f0-9-]+/);
 
@@ -465,7 +465,7 @@ test.describe('Photo Functionality', () => {
             await expect(page.locator('text=/1 photo attached/')).toBeVisible({ timeout: 8000 });
 
             await page.fill('input#title', 'Chat Photo Test');
-            await page.fill('textarea#content', 'This note has a photo and should go to Google Chat');
+            await page.fill('textarea#content', 'This note has a photo and should go to Google Chat __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
             await page.waitForURL(/\/notes\/[a-f0-9-]+/);
 
@@ -491,7 +491,7 @@ test.describe('Photo Functionality', () => {
             await expect(page.locator('text=/1 photo attached/')).toBeVisible({ timeout: 8000 });
 
             await page.fill('input#title', 'Card Format Test');
-            await page.fill('textarea#content', 'Photo note — should use card payload');
+            await page.fill('textarea#content', 'Photo note — should use card payload __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
 
             await page.waitForURL(/\/notes\/[a-f0-9-]+/);
@@ -529,7 +529,7 @@ test.describe('Photo Functionality', () => {
             await page.goto('/notes/new');
 
             await page.fill('input#title', 'Plain Text Format Test');
-            await page.fill('textarea#content', 'No photo — should use plain text payload');
+            await page.fill('textarea#content', 'No photo — should use plain text payload __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
 
             await page.waitForURL(/\/notes\/[a-f0-9-]+/);
@@ -601,7 +601,7 @@ test.describe('Photo Functionality', () => {
             await injectPhotoFile(page, 'input[type="file"]:not([capture])', tempJpeg);
             await expect(page.locator('text=/1 photo attached/')).toBeVisible({ timeout: 8000 });
 
-            await page.fill('input#title', 'Photo Persistence Test');
+            await page.fill('input#title', 'Photo Persistence Test __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
 
             await page.waitForURL(/\/notes\/[a-f0-9-]+/);
@@ -637,7 +637,7 @@ test.describe('Photo Functionality', () => {
             await page.goto('/notes/new');
 
             await page.fill('input#title', 'No Photo Persistence Test');
-            await page.fill('textarea#content', 'No photos on this one');
+            await page.fill('textarea#content', 'No photos on this one __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
 
             await page.waitForURL(/\/notes\/[a-f0-9-]+/);
@@ -676,7 +676,7 @@ test.describe('Photo Functionality', () => {
             await injectPhotoFile(page, 'input[type="file"]:not([capture])', tempJpeg);
             await expect(page.locator('text=/1 photo attached/')).toBeVisible({ timeout: 8000 });
 
-            await page.fill('input#title', 'Console Error Check');
+            await page.fill('input#title', 'Console Error Check __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
 
             await page.waitForURL(/\/notes\/[a-f0-9-]+/);
@@ -693,7 +693,7 @@ test.describe('Photo Functionality', () => {
             await injectPhotoFile(page, 'input[type="file"]:not([capture])', tempJpeg);
             await expect(page.locator('text=/1 photo attached/')).toBeVisible({ timeout: 8000 });
 
-            await page.fill('input#title', 'Detail Console Check');
+            await page.fill('input#title', 'Detail Console Check __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
 
             await page.waitForURL(/\/notes\/[a-f0-9-]+/);

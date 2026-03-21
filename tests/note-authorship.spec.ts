@@ -8,7 +8,7 @@ test.describe('Note Authorship and Timestamps', () => {
 
       await page.goto('/notes/new');
       await page.fill('input#title', 'Cyrus Attribution Test');
-      await page.fill('textarea#content', 'This note should be attributed to Cyrus');
+      await page.fill('textarea#content', 'This note should be attributed to Cyrus __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
       await page.waitForURL(/\/notes\/[a-f0-9-]+/);
@@ -26,7 +26,7 @@ test.describe('Note Authorship and Timestamps', () => {
 
       await page.goto('/notes/new');
       await page.fill('input#title', 'Brianna Attribution Test');
-      await page.fill('textarea#content', 'This note should be attributed to Brianna');
+      await page.fill('textarea#content', 'This note should be attributed to Brianna __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
       await page.waitForURL(/\/notes\/[a-f0-9-]+/);
@@ -40,7 +40,7 @@ test.describe('Note Authorship and Timestamps', () => {
 
       await page.goto('/notes/new');
       await page.fill('input#title', 'Victor Attribution Test');
-      await page.fill('textarea#content', 'This note should be attributed to Victor');
+      await page.fill('textarea#content', 'This note should be attributed to Victor __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
       await page.waitForURL(/\/notes\/[a-f0-9-]+/);
@@ -54,7 +54,7 @@ test.describe('Note Authorship and Timestamps', () => {
 
       await page.goto('/notes/new');
       await page.fill('input#title', 'Scott Attribution Test');
-      await page.fill('textarea#content', 'This note should be attributed to Scott');
+      await page.fill('textarea#content', 'This note should be attributed to Scott __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
       await page.waitForURL(/\/notes\/[a-f0-9-]+/);
@@ -69,7 +69,7 @@ test.describe('Note Authorship and Timestamps', () => {
       // Create a note
       await page.goto('/notes/new');
       await page.fill('input#title', 'Card Attribution Test');
-      await page.fill('textarea#content', 'Testing card view attribution');
+      await page.fill('textarea#content', 'Testing card view attribution __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
       await page.waitForURL(/\/notes\/[a-f0-9-]+/);
@@ -90,7 +90,7 @@ test.describe('Note Authorship and Timestamps', () => {
 
       await page.goto('/notes/new');
       await page.fill('input#title', 'Timestamp Format Test');
-      await page.fill('textarea#content', 'Testing readable timestamp');
+      await page.fill('textarea#content', 'Testing readable timestamp __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
       await page.waitForURL(/\/notes\/[a-f0-9-]+/);
@@ -169,7 +169,7 @@ test.describe('Note Authorship and Timestamps', () => {
       for (let i = 1; i <= 3; i++) {
         await page.goto('/notes/new');
         await page.fill('input#title', `List Test Note ${i}`);
-        await page.fill('textarea#content', `Content ${i}`);
+        await page.fill('textarea#content', `Content ${i} __PLAYWRIGHT_TEST__`);
         await page.click('button[type="submit"]');
         await page.waitForURL(/\/notes\/[a-f0-9-]+/);
       }
@@ -192,7 +192,7 @@ test.describe('Note Authorship and Timestamps', () => {
       await login(page, USERS.cyrus);
       await page.goto('/notes/new');
       await page.fill('input#title', 'Cyrus Multi-User Test');
-      await page.fill('textarea#content', 'From Cyrus');
+      await page.fill('textarea#content', 'From Cyrus __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
       await page.waitForURL(/\/notes\/[a-f0-9-]+/);
 
@@ -201,7 +201,7 @@ test.describe('Note Authorship and Timestamps', () => {
       await login(page, USERS.brianna);
       await page.goto('/notes/new');
       await page.fill('input#title', 'Brianna Multi-User Test');
-      await page.fill('textarea#content', 'From Brianna');
+      await page.fill('textarea#content', 'From Brianna __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
       await page.waitForURL(/\/notes\/[a-f0-9-]+/);
 

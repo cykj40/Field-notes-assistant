@@ -11,6 +11,7 @@ export default defineConfig({
   workers: 1,
   reporter: 'html',
   globalSetup: './tests/global.setup.ts',
+  globalTeardown: './tests/global-teardown.ts',
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',

@@ -100,3 +100,13 @@ The 300ms confidence-resolution window is tested by firing both recognizers in r
 ```bash
 npx playwright test tests/voice-dictation-bilingual.spec.ts --project=chromium
 ```
+
+### Test cleanup — Redis teardown
+
+After every test run, `tests/global-teardown.ts` automatically deletes any notes that were created by Playwright.
+
+**How it works:** Notes are stored as a single JSON array at the Redis key `field:notes`. The teardown reads that array, removes any note whose `title` or `content` contains the sentinel string `__PLAYWRIGHT_TEST__`, and writes the filtered array back.
+
+**Rule:** Every test that creates a note must include `__PLAYWRIGHT_TEST__` somewhere in the note's `title` or `content` field. This is already done in all existing test files. When adding new tests that create notes, always append the sentinel to the content (or title for photo-only notes).
+
+The teardown is idempotent — if no test notes are found, it logs a clean message and exits without error.
