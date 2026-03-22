@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Note, CreateNoteInput, NotePhoto } from '@/types/note';
 import { useVoiceRecognition } from '@/hooks/useVoiceRecognition';
@@ -232,28 +232,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
                 </>
               )}
             </button>
-            {isRecording && (
-              <div className="mt-3 rounded-lg bg-gray-900 px-4 py-3">
-                <div className="flex items-end justify-center gap-[3px] h-10">
-                  {Array.from({ length: 24 }).map((_, i) => {
-                    const barHeight = Math.max(
-                      4,
-                      volumeLevel * 40 * (0.4 + 0.6 * Math.sin((i / 24) * Math.PI))
-                    );
-                    return (
-                      <div
-                        key={i}
-                        className="w-[3px] rounded-full bg-green-400 transition-all duration-75"
-                        style={{ height: `${barHeight}px` }}
-                      />
-                    );
-                  })}
-                </div>
-                <p className="mt-2 text-xs text-center text-gray-400">
-                  Listening... tap Stop when done
-                </p>
-              </div>
-            )}
+            {isRecording && <AudioVisualizer volumeLevel={volumeLevel} />}
             {isTranscribing && (
               <p className="mt-1.5 text-xs text-center text-gray-500">
                 Sending audio to Whisper for transcription...
@@ -405,5 +384,48 @@ function ImageIcon() {
       <circle cx="8.5" cy="8.5" r="1.5" />
       <path d="M21 15l-5-5L5 21" />
     </svg>
+  );
+}
+
+const BAR_COUNT = 28;
+const MIN_BAR_H = 3;
+const MAX_BAR_H = 44;
+
+function AudioVisualizer({ volumeLevel }: { volumeLevel: number }) {
+  const seeds = useMemo(
+    () => Array.from({ length: BAR_COUNT }, () => 0.3 + Math.random() * 0.7),
+    [],
+  );
+
+  return (
+    <div className="mt-3 rounded-lg bg-gray-900 px-4 py-3">
+      <div
+        className="flex items-center justify-center gap-[2px]"
+        style={{ height: `${MAX_BAR_H + 8}px` }}
+      >
+        {seeds.map((seed, i) => {
+          const envelope = Math.sin(((i + 0.5) / BAR_COUNT) * Math.PI);
+          const h =
+            MIN_BAR_H + (MAX_BAR_H - MIN_BAR_H) * volumeLevel * envelope * seed;
+          return (
+            <div
+              key={i}
+              className="w-[3px] rounded-full"
+              style={{
+                height: `${Math.round(h)}px`,
+                backgroundColor:
+                  volumeLevel > 0.05
+                    ? `hsl(${130 + volumeLevel * 20}, 70%, ${45 + volumeLevel * 15}%)`
+                    : '#4b5563',
+                transition: 'height 80ms ease-out, background-color 120ms ease',
+              }}
+            />
+          );
+        })}
+      </div>
+      <p className="mt-2 text-xs text-center text-gray-400">
+        {volumeLevel > 0.05 ? 'Hearing you...' : 'Listening — start speaking'}
+      </p>
+    </div>
   );
 }

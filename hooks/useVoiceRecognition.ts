@@ -22,8 +22,8 @@ export function useVoiceRecognition({ onResult, onError }: UseVoiceRecognitionOp
   const onErrorRef = useRef(onError);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
+  const smoothedRef = useRef(0);
 
   onResultRef.current = onResult;
   onErrorRef.current = onError;
@@ -52,23 +52,30 @@ export function useVoiceRecognition({ onResult, onError }: UseVoiceRecognitionOp
       streamRef.current = stream;
 
       const audioCtx = new AudioContext();
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 512;
-      analyser.smoothingTimeConstant = 0.3;
+      analyser.fftSize = 256;
+      analyser.minDecibels = -90;
+      analyser.maxDecibels = -10;
+      analyser.smoothingTimeConstant = 0.4;
       source.connect(analyser);
       audioContextRef.current = audioCtx;
-      analyserRef.current = analyser;
+      smoothedRef.current = 0;
 
-      const dataArray = new Uint8Array(analyser.fftSize);
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Float32Array(bufferLength);
       const updateVolume = () => {
-        analyser.getByteTimeDomainData(dataArray);
-        let peak = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          const amplitude = Math.abs(dataArray[i]! - 128);
-          if (amplitude > peak) peak = amplitude;
+        analyser.getFloatTimeDomainData(dataArray);
+        let rms = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          rms += dataArray[i]! * dataArray[i]!;
         }
-        setVolumeLevel(Math.min(peak / 64, 1));
+        rms = Math.sqrt(rms / bufferLength);
+        const normalized = Math.min(rms / 0.15, 1);
+        const target = Math.pow(normalized, 0.6);
+        smoothedRef.current += (target - smoothedRef.current) * 0.35;
+        setVolumeLevel(smoothedRef.current);
         animFrameRef.current = requestAnimationFrame(updateVolume);
       };
       updateVolume();
@@ -154,12 +161,12 @@ export function useVoiceRecognition({ onResult, onError }: UseVoiceRecognitionOp
   const stop = useCallback(() => {
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     animFrameRef.current = null;
+    smoothedRef.current = 0;
     setVolumeLevel(0);
 
     if (audioContextRef.current) {
       audioContextRef.current.close().catch(() => {});
       audioContextRef.current = null;
-      analyserRef.current = null;
     }
 
     if (mediaRecorderRef.current?.state === 'recording') {
