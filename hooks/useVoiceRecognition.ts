@@ -54,19 +54,21 @@ export function useVoiceRecognition({ onResult, onError }: UseVoiceRecognitionOp
       const audioCtx = new AudioContext();
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.5;
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.3;
       source.connect(analyser);
       audioContextRef.current = audioCtx;
       analyserRef.current = analyser;
 
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const dataArray = new Uint8Array(analyser.fftSize);
       const updateVolume = () => {
-        analyser.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i]!;
-        const avg = sum / dataArray.length;
-        setVolumeLevel(Math.min(avg / 80, 1));
+        analyser.getByteTimeDomainData(dataArray);
+        let peak = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          const amplitude = Math.abs(dataArray[i]! - 128);
+          if (amplitude > peak) peak = amplitude;
+        }
+        setVolumeLevel(Math.min(peak / 64, 1));
         animFrameRef.current = requestAnimationFrame(updateVolume);
       };
       updateVolume();
