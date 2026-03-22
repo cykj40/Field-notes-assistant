@@ -13,12 +13,17 @@ export function useVoiceRecognition({ onResult, onError }: UseVoiceRecognitionOp
   const [isSupported, setIsSupported] = useState(true);
   const [elapsed, setElapsed] = useState(0);
 
+  const [volumeLevel, setVolumeLevel] = useState(0);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const onResultRef = useRef(onResult);
   const onErrorRef = useRef(onError);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animFrameRef = useRef<number | null>(null);
 
   onResultRef.current = onResult;
   onErrorRef.current = onError;
@@ -45,6 +50,26 @@ export function useVoiceRecognition({ onResult, onError }: UseVoiceRecognitionOp
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
+
+      const audioCtx = new AudioContext();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.5;
+      source.connect(analyser);
+      audioContextRef.current = audioCtx;
+      analyserRef.current = analyser;
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const updateVolume = () => {
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i]!;
+        const avg = sum / dataArray.length;
+        setVolumeLevel(Math.min(avg / 80, 1));
+        animFrameRef.current = requestAnimationFrame(updateVolume);
+      };
+      updateVolume();
 
       const mimeType = [
         'audio/webm;codecs=opus',
@@ -125,11 +150,21 @@ export function useVoiceRecognition({ onResult, onError }: UseVoiceRecognitionOp
   }, []);
 
   const stop = useCallback(() => {
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    animFrameRef.current = null;
+    setVolumeLevel(0);
+
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+      analyserRef.current = null;
+    }
+
     if (mediaRecorderRef.current?.state === 'recording') {
       mediaRecorderRef.current.stop();
     }
     setIsRecording(false);
   }, []);
 
-  return { isRecording, isTranscribing, isSupported, elapsed, start, stop };
+  return { isRecording, isTranscribing, isSupported, elapsed, volumeLevel, start, stop };
 }

@@ -27,7 +27,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
     setContent((prev) => (prev ? prev + ' ' + text : text).trim());
   }, []);
 
-  const { isRecording, isTranscribing, isSupported, elapsed, start, stop } = useVoiceRecognition({
+  const { isRecording, isTranscribing, isSupported, elapsed, volumeLevel, start, stop } = useVoiceRecognition({
     onResult: (text) => {
       appendToNotes(text);
     },
@@ -232,6 +232,28 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
                 </>
               )}
             </button>
+            {isRecording && (
+              <div className="mt-3 rounded-lg bg-gray-900 px-4 py-3">
+                <div className="flex items-end justify-center gap-[3px] h-10">
+                  {Array.from({ length: 24 }).map((_, i) => {
+                    const barHeight = Math.max(
+                      4,
+                      volumeLevel * 40 * (0.4 + 0.6 * Math.sin((i / 24) * Math.PI))
+                    );
+                    return (
+                      <div
+                        key={i}
+                        className="w-[3px] rounded-full bg-green-400 transition-all duration-75"
+                        style={{ height: `${barHeight}px` }}
+                      />
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-xs text-center text-gray-400">
+                  Listening... tap Stop when done
+                </p>
+              </div>
+            )}
             {isTranscribing && (
               <p className="mt-1.5 text-xs text-center text-gray-500">
                 Sending audio to Whisper for transcription...
