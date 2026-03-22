@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 
 interface UseVoiceRecognitionOptions {
   onResult: (text: string) => void;
@@ -11,15 +11,30 @@ export function useVoiceRecognition({ onResult, onError }: UseVoiceRecognitionOp
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
+  const [elapsed, setElapsed] = useState(0);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const onResultRef = useRef(onResult);
   const onErrorRef = useRef(onError);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   onResultRef.current = onResult;
   onErrorRef.current = onError;
+
+  useEffect(() => {
+    if (isRecording) {
+      setElapsed(0);
+      timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isRecording]);
 
   const start = useCallback(async () => {
     if (!navigator?.mediaDevices?.getUserMedia) {
@@ -116,5 +131,5 @@ export function useVoiceRecognition({ onResult, onError }: UseVoiceRecognitionOp
     setIsRecording(false);
   }, []);
 
-  return { isRecording, isTranscribing, isSupported, start, stop };
+  return { isRecording, isTranscribing, isSupported, elapsed, start, stop };
 }

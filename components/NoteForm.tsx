@@ -27,7 +27,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
     setContent((prev) => (prev ? prev + ' ' + text : text).trim());
   }, []);
 
-  const { isRecording, isTranscribing, isSupported, start, stop } = useVoiceRecognition({
+  const { isRecording, isTranscribing, isSupported, elapsed, start, stop } = useVoiceRecognition({
     onResult: (text) => {
       appendToNotes(text);
     },
@@ -191,33 +191,50 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
           suppressHydrationWarning
         />
         {isSupported ? (
-          <div className="mt-2">
+          <div className="mt-3">
             <button
               type="button"
               onClick={isRecording ? stop : start}
               disabled={isTranscribing}
               aria-label={isRecording ? 'Stop recording' : 'Start voice dictation'}
               className={[
-                'flex w-full items-center justify-center gap-2 rounded-lg',
-                'min-h-[48px] text-sm font-semibold transition-colors',
+                'flex w-full items-center justify-center gap-3 rounded-xl',
+                'min-h-[64px] text-base font-bold transition-all shadow-sm',
                 isRecording
-                  ? 'animate-pulse bg-red-600 text-white hover:bg-red-700 active:bg-red-800'
+                  ? 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 ring-2 ring-red-300'
                   : isTranscribing
                   ? 'bg-yellow-500 text-white cursor-wait'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300',
+                  : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800',
               ].join(' ')}
             >
               {isRecording ? (
-                <><MicOffIcon /> Stop Recording</>
+                <>
+                  <span className="relative flex h-5 w-5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-50" />
+                    <span className="relative inline-flex rounded-full h-5 w-5 items-center justify-center">
+                      <MicOffIcon />
+                    </span>
+                  </span>
+                  <span>Stop Recording</span>
+                  <span className="ml-1 tabular-nums font-mono text-sm opacity-90">
+                    {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
+                  </span>
+                </>
               ) : isTranscribing ? (
-                <>Transcribing...</>
+                <>
+                  <SpinnerIcon />
+                  <span>Transcribing...</span>
+                </>
               ) : (
-                <><MicIcon /> Dictate</>
+                <>
+                  <MicIcon />
+                  <span>Dictate Notes</span>
+                </>
               )}
             </button>
             {isTranscribing && (
-              <p className="mt-1 text-xs text-center text-gray-500">
-                Processing audio...
+              <p className="mt-1.5 text-xs text-center text-gray-500">
+                Sending audio to Whisper for transcription...
               </p>
             )}
           </div>
@@ -313,7 +330,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
 
 function MicIcon() {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
       stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
       aria-hidden="true">
       <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
@@ -328,10 +345,20 @@ function MicOffIcon() {
     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
       stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
       aria-hidden="true">
-      <rect x="9" y="2" width="6" height="10" rx="3" />
-      <line x1="9" y1="9" x2="15" y2="15" />
+      <rect x="6" y="2" width="12" height="12" rx="6" />
       <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
       <line x1="12" y1="19" x2="12" y2="22" />
+    </svg>
+  );
+}
+
+function SpinnerIcon() {
+  return (
+    <svg className="animate-spin" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+      viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor"
+        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
     </svg>
   );
 }
