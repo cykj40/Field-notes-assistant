@@ -78,7 +78,7 @@ test.describe('Note Authorship and Timestamps', () => {
       await page.goto('/');
 
       // The note card should show creator and timestamp in format "Cyrus · Feb 28, 2026 · 10:42 AM"
-      const noteCard = page.locator('a').filter({ hasText: 'Card Attribution Test' });
+      const noteCard = page.locator('a').filter({ hasText: 'Card Attribution Test' }).first();
       await expect(noteCard).toBeVisible();
 
       // Check for creator name on the card
@@ -107,9 +107,15 @@ test.describe('Note Authorship and Timestamps', () => {
   });
 
   test.describe('Anonymous Note Blocking', () => {
-    test('should block note creation without authentication', async ({ page, request }) => {
-      // Try to create a note without logging in
-      const response = await request.post('/api/notes', {
+    test.use({ storageState: { cookies: [], origins: [] } });
+
+    test('should block note creation without authentication', async ({ playwright }) => {
+      // Use a fresh unauthenticated request context (project storageState does not affect this)
+      const freshRequest = await playwright.request.newContext({
+        baseURL: 'http://localhost:3000',
+        storageState: { cookies: [], origins: [] },
+      });
+      const response = await freshRequest.post('/api/notes', {
         data: {
           title: 'Anonymous Note',
           content: 'This should not be created',
@@ -121,10 +127,13 @@ test.describe('Note Authorship and Timestamps', () => {
         },
       });
 
-      // Should return 401 Unauthorized
-      expect(response.status()).toBe(401);
-
+      // Read body before disposing the context
+      const status = response.status();
       const body = await response.json();
+      await freshRequest.dispose();
+
+      // Should return 401 Unauthorized
+      expect(status).toBe(401);
       expect(body).toHaveProperty('error');
     });
 
@@ -209,8 +218,8 @@ test.describe('Note Authorship and Timestamps', () => {
       await page.goto('/');
 
       // Should see both creators
-      await expect(page.locator('text=Cyrus')).toBeVisible();
-      await expect(page.locator('text=Brianna')).toBeVisible();
+      await expect(page.locator('text=Cyrus').first()).toBeVisible();
+      await expect(page.locator('text=Brianna').first()).toBeVisible();
     });
   });
 });

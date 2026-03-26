@@ -3,6 +3,8 @@ import { USERS, login, logout } from './auth.setup';
 
 test.describe('Authentication System', () => {
   test.describe('Login Flow', () => {
+    test.use({ storageState: { cookies: [], origins: [] } });
+
     test('should login successfully with valid Cyrus credentials', async ({ page }) => {
       await page.goto('/login');
       await page.fill('input#username', USERS.cyrus.username);
@@ -83,7 +85,8 @@ test.describe('Authentication System', () => {
       await expect(page).toHaveURL('/notes/new');
     });
 
-    test('should redirect to login when accessing protected route without session', async ({ page }) => {
+    test('should redirect to login when accessing protected route without session', async ({ page, context }) => {
+      await context.clearCookies();
       // Try to access home without logging in
       await page.goto('/');
       await expect(page).toHaveURL('/login');

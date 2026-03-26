@@ -45,6 +45,10 @@ export async function middleware(request: NextRequest) {
 
   // Check if user is authenticated
   if (!session.isLoggedIn) {
+    // API routes should return 401 JSON, not redirect to login
+    if (request.nextUrl.pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
     return NextResponse.redirect(new URL('/login', request.url));
   }
 

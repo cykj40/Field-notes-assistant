@@ -125,8 +125,8 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       setSaving(true);
 
       const body: CreateNoteInput = {
-        title: title.trim(),
-        content: content.trim(),
+        ...(title.trim() ? { title: title.trim() } : {}),
+        ...(content.trim() ? { content: content.trim() } : {}),
         tags: [],
         photos,
       };
@@ -147,7 +147,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
 
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error ?? 'Failed to save note.');
+        setError(typeof data.error === 'string' ? data.error : 'Failed to save note.');
         return;
       }
 

@@ -30,15 +30,13 @@ test.describe('Google Chat Webhook Attribution', () => {
     await expect(page.locator('text=Created by: Victor')).toBeVisible();
     await expect(page.locator('text=Created:')).toBeVisible();
 
-    // If webhook URL is configured, we could test the actual submission
+    // If webhook URL is configured, test the actual submission
     if (process.env['GOOGLE_CHAT_WEBHOOK_URL']) {
-      // Click send to chat button
       const sendButton = page.locator('button:has-text("Send to Google Chat")');
       if ((await sendButton.count()) > 0) {
         await sendButton.click();
-
-        // Wait for success message
-        await expect(page.locator('text=Sent to chat')).toBeVisible({ timeout: 10000 });
+        // After a successful send the note is deleted and the user is redirected to home
+        await expect(page).toHaveURL('/', { timeout: 10000 });
       }
     }
   });
@@ -92,7 +90,7 @@ test.describe('Google Chat Webhook Attribution', () => {
     await page.goto('/');
 
     for (const user of users) {
-      await expect(page.locator(`text=${user.username}`)).toBeVisible();
+      await expect(page.locator(`text=${user.username}`).first()).toBeVisible();
     }
   });
 

@@ -33,16 +33,15 @@ async function mockMediaRecorder(page: Page) {
       start() {
         this.state = 'recording';
         (window as any).__mockRecorder = this;
-        setTimeout(() => {
-          this.ondataavailable?.({
-            data: new Blob(['fake-audio-data-padded-to-1500-bytes'.padEnd(1500, 'x')],
-              { type: 'audio/webm' })
-          });
-        }, 50);
       }
 
       stop() {
         this.state = 'inactive';
+        // Fire ondataavailable synchronously before onstop (matches real MediaRecorder spec)
+        this.ondataavailable?.({
+          data: new Blob(['fake-audio-data-padded-to-1500-bytes'.padEnd(1500, 'x')],
+            { type: 'audio/webm' })
+        });
         this.onstop?.();
       }
 
@@ -50,6 +49,25 @@ async function mockMediaRecorder(page: Page) {
     }
 
     (window as any).MediaRecorder = MockMediaRecorder;
+
+    class MockAudioContext {
+      state = 'running';
+      async resume() {}
+      createMediaStreamSource() { return { connect: () => {} }; }
+      createAnalyser() {
+        return {
+          fftSize: 256,
+          minDecibels: -90,
+          maxDecibels: -10,
+          smoothingTimeConstant: 0.4,
+          frequencyBinCount: 128,
+          getFloatTimeDomainData(_arr: Float32Array) {},
+          connect() {},
+        };
+      }
+      close() { return Promise.resolve(); }
+    }
+    (window as any).AudioContext = MockAudioContext;
 
     Object.defineProperty(navigator, 'mediaDevices', {
       writable: true,

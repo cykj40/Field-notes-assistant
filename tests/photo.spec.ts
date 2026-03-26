@@ -61,9 +61,14 @@ test.describe('Photo Functionality', () => {
     // -------------------------------------------------------------------------
 
     test.describe('Upload API (/api/photos/upload)', () => {
-        test('should reject unauthenticated upload requests', async ({ request }) => {
+        test('should reject unauthenticated upload requests', async ({ playwright }) => {
+            // Use a fresh unauthenticated context so project storageState cookies don't interfere
+            const freshRequest = await playwright.request.newContext({
+                baseURL: 'http://localhost:3000',
+                storageState: { cookies: [], origins: [] },
+            });
             const jpegBytes = tinyJpegBuffer();
-            const response = await request.post('/api/photos/upload', {
+            const response = await freshRequest.post('/api/photos/upload', {
                 headers: { 'x-api-key': process.env['NEXT_PUBLIC_FIELD_NOTES_API_KEY'] ?? '' },
                 multipart: {
                     image: {
@@ -73,6 +78,7 @@ test.describe('Photo Functionality', () => {
                     },
                 },
             });
+            await freshRequest.dispose();
 
             expect(response.status()).toBe(401);
         });

@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Unauthenticated Access', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test('should redirect to /login when accessing home page without auth', async ({ page }) => {
     const messages: string[] = [];
 
