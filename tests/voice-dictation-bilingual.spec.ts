@@ -1,8 +1,13 @@
 import { test, expect, Page } from '@playwright/test';
 import { login, USERS, UserCredentials } from './auth.setup';
 
-async function mockTranscribeAPI(page: Page, transcript: string) {
+test.use({ storageState: { cookies: [], origins: [] } });
+
+async function mockTranscribeAPI(page: Page, transcript: string, delayMs = 0) {
   await page.route('**/api/transcribe**', async (route) => {
+    if (delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -100,7 +105,7 @@ test.describe('Voice Dictation', () => {
   });
 
   test('stopping recording shows transcribing state', async ({ page }) => {
-    await mockTranscribeAPI(page, 'Test transcript');
+    await mockTranscribeAPI(page, 'Test transcript', 250);
     await goToNoteForm(page);
     await page.getByRole('button', { name: 'Start voice dictation' }).click();
     await page.getByRole('button', { name: 'Stop recording' }).click();

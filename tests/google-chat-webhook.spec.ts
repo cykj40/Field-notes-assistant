@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { USERS, login } from './auth.setup';
 
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test.describe('Google Chat Webhook Attribution', () => {
   test.skip(
     !process.env['GOOGLE_CHAT_WEBHOOK_URL'],
@@ -12,7 +14,7 @@ test.describe('Google Chat Webhook Attribution', () => {
 
     // Create a note
     await page.goto('/notes/new');
-    await page.fill('input#title', 'Webhook Attribution Test');
+    await page.fill('input#title', `Webhook Attribution Test ${Date.now()} __PLAYWRIGHT_TEST__`);
     await page.fill('textarea#content', 'Testing webhook attribution format __PLAYWRIGHT_TEST__');
     await page.click('button[type="submit"]');
 
@@ -47,7 +49,7 @@ test.describe('Google Chat Webhook Attribution', () => {
     // Create a note
     await page.goto('/notes/new');
     const timestamp = new Date().toISOString();
-    await page.fill('input#title', `Webhook Format Test ${timestamp}`);
+    await page.fill('input#title', `Webhook Format Test ${timestamp} __PLAYWRIGHT_TEST__`);
     await page.fill('textarea#content', 'Content for webhook formatting test __PLAYWRIGHT_TEST__');
     await page.click('button[type="submit"]');
 
@@ -71,12 +73,12 @@ test.describe('Google Chat Webhook Attribution', () => {
     // Create notes from different users
     const users = [USERS.cyrus, USERS.brianna, USERS.victor];
 
-    for (const user of users) {
+    for (const [index, user] of users.entries()) {
       await page.context().clearCookies();
       await login(page, user);
 
       await page.goto('/notes/new');
-      await page.fill('input#title', `${user.username} Webhook Test`);
+      await page.fill('input#title', `${user.username} Webhook Test ${index} __PLAYWRIGHT_TEST__`);
       await page.fill('textarea#content', `Note from ${user.username} __PLAYWRIGHT_TEST__`);
       await page.click('button[type="submit"]');
 

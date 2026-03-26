@@ -16,6 +16,12 @@ async function globalSetup(config: FullConfig) {
     fs.mkdirSync(storageStateDir, { recursive: true });
   }
 
+  for (const entry of fs.readdirSync(storageStateDir)) {
+    if (entry.endsWith('.json')) {
+      fs.rmSync(path.join(storageStateDir, entry), { force: true });
+    }
+  }
+
   const browser = await chromium.launch();
 
   // Create authenticated sessions for each user
@@ -44,7 +50,10 @@ async function globalSetup(config: FullConfig) {
 
       // Save authenticated state
       const storagePath = path.join(storageStateDir, `${key}.json`);
-      await context.storageState({ path: storagePath });
+      const tempPath = `${storagePath}.${process.pid}.tmp`;
+      const state = await context.storageState();
+      fs.writeFileSync(tempPath, JSON.stringify(state, null, 2));
+      fs.renameSync(tempPath, storagePath);
 
       console.log(`✓ Created auth state for ${user.username} at ${storagePath}`);
     } catch (error) {

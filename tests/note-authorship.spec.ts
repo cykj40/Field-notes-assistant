@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { USERS, login } from './auth.setup';
 
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test.describe('Note Authorship and Timestamps', () => {
   test.describe('Note Creation Attribution', () => {
     test('should stamp note with Cyrus and timestamp on creation', async ({ page }) => {
@@ -65,10 +67,11 @@ test.describe('Note Authorship and Timestamps', () => {
 
     test('should show creator and timestamp on note card', async ({ page }) => {
       await login(page, USERS.cyrus);
+      const title = `Card Attribution Test ${Date.now()} __PLAYWRIGHT_TEST__`;
 
       // Create a note
       await page.goto('/notes/new');
-      await page.fill('input#title', 'Card Attribution Test');
+      await page.fill('input#title', title);
       await page.fill('textarea#content', 'Testing card view attribution __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
@@ -78,7 +81,7 @@ test.describe('Note Authorship and Timestamps', () => {
       await page.goto('/');
 
       // The note card should show creator and timestamp in format "Cyrus · Feb 28, 2026 · 10:42 AM"
-      const noteCard = page.locator('a').filter({ hasText: 'Card Attribution Test' }).first();
+      const noteCard = page.locator('a').filter({ hasText: title }).first();
       await expect(noteCard).toBeVisible();
 
       // Check for creator name on the card
