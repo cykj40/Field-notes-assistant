@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      CI: true
+      PORT: 3000
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+      UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+      GOOGLE_CHAT_WEBHOOK_URL: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}
+      FIELD_NOTES_API_KEY: ${{ secrets.FIELD_NOTES_API_KEY }}
+      NEXT_PUBLIC_FIELD_NOTES_API_KEY: ${{ secrets.NEXT_PUBLIC_FIELD_NOTES_API_KEY }}
+      SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      CYRUS_PASSWORD: ${{ secrets.CYRUS_PASSWORD }}
+      BRIANNA_PASSWORD: ${{ secrets.BRIANNA_PASSWORD }}
+      VICTOR_PASSWORD: ${{ secrets.VICTOR_PASSWORD }}
+      SCOTT_PASSWORD: ${{ secrets.SCOTT_PASSWORD }}
+      JOHN_PASSWORD: ${{ secrets.JOHN_PASSWORD }}
+      MARC_PASSWORD: ${{ secrets.MARC_PASSWORD }}
+      WILLY_PASSWORD: ${{ secrets.WILLY_PASSWORD }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Seed users
+        run: npm run seed-users
+
+      - name: Build application
+        run: npm run build
+
+      - name: Start application
+        run: npm run start &
+
+      - name: Wait for application
+        run: npx wait-on http://127.0.0.1:3000
+
+      - name: Run Playwright tests
+        env:
+          PLAYWRIGHT_SKIP_WEBSERVER: "1"
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
