@@ -7,7 +7,8 @@ async function seedUsers() {
   const databaseUrl = process.env['DATABASE_URL'];
 
   if (!databaseUrl) {
-    throw new Error('DATABASE_URL environment variable is not set');
+    console.warn('⚠️  DATABASE_URL is not set — skipping user seeding.');
+    process.exit(0);
   }
 
   const sql = neon(databaseUrl);
