@@ -165,7 +165,7 @@ test.describe('Authentication System', () => {
       // Create a note to see the creator name
       await page.goto('/notes/new');
       await page.fill('input#title', 'Cyrus Test Note');
-      await page.fill('textarea#content', 'Testing creator attribution');
+      await page.fill('textarea#content', 'Testing creator attribution __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
       await page.waitForURL(/\/notes\/[a-f0-9-]+/);
@@ -180,7 +180,7 @@ test.describe('Authentication System', () => {
       // Create a note to see the creator name
       await page.goto('/notes/new');
       await page.fill('input#title', 'Brianna Test Note');
-      await page.fill('textarea#content', 'Testing creator attribution');
+      await page.fill('textarea#content', 'Testing creator attribution __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
       await page.waitForURL(/\/notes\/[a-f0-9-]+/);
@@ -195,7 +195,7 @@ test.describe('Authentication System', () => {
       // Create a note to see the creator name
       await page.goto('/notes/new');
       await page.fill('input#title', 'Victor Test Note');
-      await page.fill('textarea#content', 'Testing creator attribution');
+      await page.fill('textarea#content', 'Testing creator attribution __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
       await page.waitForURL(/\/notes\/[a-f0-9-]+/);
@@ -210,7 +210,7 @@ test.describe('Authentication System', () => {
       // Create a note to see the creator name
       await page.goto('/notes/new');
       await page.fill('input#title', 'Scott Test Note');
-      await page.fill('textarea#content', 'Testing creator attribution');
+      await page.fill('textarea#content', 'Testing creator attribution __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
       await page.waitForURL(/\/notes\/[a-f0-9-]+/);

@@ -12,7 +12,8 @@
     "test:e2e": "playwright test",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
-    "seed-users": "tsx scripts/seed-users.ts"
+    "seed-users": "tsx scripts/seed-users.ts",
+    "cleanup-test-notes": "tsx scripts/cleanup-test-notes.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
