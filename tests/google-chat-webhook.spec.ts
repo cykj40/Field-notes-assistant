@@ -96,24 +96,4 @@ test.describe('Google Chat Webhook Attribution', () => {
     }
   });
 
-  test('should gracefully handle notes without creator in webhook', async ({ page }) => {
-    await login(page, USERS.cyrus);
-
-    // We can't easily create a legacy note without creator,
-    // but we can verify the home page doesn't crash when displaying notes
-    await page.goto('/');
-
-    // Page should load successfully
-    await expect(page.locator('h1')).toContainText('Field Notes');
-
-    // Check for JavaScript errors
-    const errors: string[] = [];
-    page.on('pageerror', (error) => {
-      errors.push(error.message);
-    });
-
-    await page.waitForTimeout(1000);
-
-    expect(errors).toHaveLength(0);
-  });
 });

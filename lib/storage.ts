@@ -17,6 +17,11 @@ export async function getNotes(): Promise<Note[]> {
   return readNotes();
 }
 
+export async function getNotesSummary(): Promise<Note[]> {
+  const notes = await readNotes();
+  return notes.map((n) => ({ ...n, photos: [] }));
+}
+
 export async function getNoteById(id: string): Promise<Note | undefined> {
   const notes = await readNotes();
   return notes.find((n) => n.id === id);

@@ -123,42 +123,6 @@ test.describe('Authentication System', () => {
   });
 
   test.describe('Multi-User Support', () => {
-    test('should login as Cyrus', async ({ page }) => {
-      await page.goto('/login');
-      await page.fill('input#username', USERS.cyrus.username);
-      await page.fill('input#password', USERS.cyrus.password);
-      await page.click('button[type="submit"]');
-
-      await expect(page).toHaveURL('/');
-    });
-
-    test('should login as Brianna', async ({ page }) => {
-      await page.goto('/login');
-      await page.fill('input#username', USERS.brianna.username);
-      await page.fill('input#password', USERS.brianna.password);
-      await page.click('button[type="submit"]');
-
-      await expect(page).toHaveURL('/');
-    });
-
-    test('should login as Victor', async ({ page }) => {
-      await page.goto('/login');
-      await page.fill('input#username', USERS.victor.username);
-      await page.fill('input#password', USERS.victor.password);
-      await page.click('button[type="submit"]');
-
-      await expect(page).toHaveURL('/');
-    });
-
-    test('should login as Scott', async ({ page }) => {
-      await page.goto('/login');
-      await page.fill('input#username', USERS.scott.username);
-      await page.fill('input#password', USERS.scott.password);
-      await page.click('button[type="submit"]');
-
-      await expect(page).toHaveURL('/');
-    });
-
     test('should display correct username for Cyrus', async ({ page }) => {
       await login(page, USERS.cyrus);
 
