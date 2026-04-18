@@ -57,3 +57,5 @@ data/notes.json
 
 playwright-report/
 test-results/
+
+supervisor-pwa-rollout-guide.md
