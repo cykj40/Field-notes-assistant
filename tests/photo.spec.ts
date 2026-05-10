@@ -633,7 +633,7 @@ test.describe('Photo Functionality', () => {
             expect(note.photos.length).toBe(1);
             expect(note.photos[0]).toMatchObject({
                 id: expect.any(String),
-                dataUrl: expect.stringMatching(/^data:image\//),
+                url: expect.stringMatching(/^https:\/\//),
                 createdAt: expect.any(String),
             });
         });

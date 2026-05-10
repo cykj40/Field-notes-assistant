@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { put } from '@vercel/blob';
 import { requireApiKey } from '@/lib/apiKey';
 import { getSession } from '@/lib/auth';
-
-// Max photo size: 800px wide, JPEG quality 70
-// We compress client-side using Canvas API so no sharp needed server-side.
-// This route just validates the upload and passes it back as a data URL.
 
 export async function POST(req: NextRequest) {
   const denied = requireApiKey(req);
@@ -22,22 +19,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No image provided' }, { status: 400 });
   }
 
-  // Validate type
   if (!file.type.startsWith('image/')) {
     return NextResponse.json({ error: 'File must be an image' }, { status: 400 });
   }
 
-  // Validate size — reject anything over 5MB before compression
   if (file.size > 5 * 1024 * 1024) {
     return NextResponse.json({ error: 'Image too large (max 5MB)' }, { status: 400 });
   }
 
-  // Convert to base64 data URL
-  const buffer = await file.arrayBuffer();
-  const base64 = Buffer.from(buffer).toString('base64');
-  const dataUrl = `data:${file.type};base64,${base64}`;
-
   const id = crypto.randomUUID();
+  const blob = await put(`photos/${id}.jpg`, file, {
+    access: 'public',
+    addRandomSuffix: false,
+  });
 
-  return NextResponse.json({ id, dataUrl });
+  return NextResponse.json({ id, url: blob.url });
 }

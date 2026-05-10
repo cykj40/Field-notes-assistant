@@ -7,7 +7,7 @@ import { UpdateNoteInput } from '@/types/note';
 
 const PhotoSchema = z.object({
   id: z.string(),
-  dataUrl: z.string().startsWith('data:image/'),
+  url: z.string().startsWith('https://'),
   caption: z.string().optional(),
   createdAt: z.string(),
 });

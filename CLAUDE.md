@@ -21,11 +21,33 @@ Mobile-first Next.js 15 PWA for field supervisors to record voice-dictated notes
 | `SESSION_SECRET` | Yes | Min-32-char secret for iron-session cookie encryption |
 | `NEXT_PUBLIC_APP_URL` | Yes | Base URL (`https://your-app.vercel.app` in prod, `http://localhost:3000` in dev) |
 | `OPENAI_API_KEY` | Yes | OpenAI key for Whisper audio transcription |
+| `BLOB_READ_WRITE_TOKEN` | Yes | Vercel Blob token for photo storage |
 
 Generate `FIELD_NOTES_API_KEY` / `SESSION_SECRET`:
 ```
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
+
+---
+
+## Photo Storage (Vercel Blob)
+
+Photos are uploaded to Vercel Blob at capture time (before note submission), not inline with the note.
+
+**Flow:**
+1. User selects a photo — NoteForm compresses it client-side (Canvas API, 1200px max, JPEG 70%)
+2. Compressed blob is immediately POSTed to `/api/photos/upload`
+3. Server uploads to Vercel Blob at path `photos/{uuid}.jpg` and returns `{ id, url }`
+4. NoteForm stores the public `https://` URL on the photo object
+5. On note submit, only the URL (not image data) is stored in Redis
+
+**NotePhoto schema:** `{ id, url, caption?, createdAt }` — `url` is always a `https://` Vercel Blob URL.
+
+**Google Chat webhook:** Photos are sent as image widgets using the Blob URL directly — no proxy or TTL.
+
+**Per-photo upload state in NoteForm:** Each photo tile shows a spinner overlay while uploading and an error overlay with a Retry button on failure. Submit is blocked while any photo is still uploading.
+
+**Old `/api/photos/[id]` route removed** — that route served base64 from Redis as a workaround; it is no longer needed.
 
 ---
 

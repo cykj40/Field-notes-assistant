@@ -88,7 +88,7 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ id:
               {note.photos.map((photo) => (
                 <div key={photo.id} className="relative rounded-lg overflow-hidden">
                   <img
-                    src={photo.dataUrl}
+                    src={photo.url}
                     alt={photo.caption ?? 'Field photo'}
                     className="w-full h-40 object-cover"
                   />

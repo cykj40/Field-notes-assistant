@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getNoteById, deleteNote } from '@/lib/storage';
 import { requireApiKey } from '@/lib/apiKey';
-import { Redis } from '@upstash/redis';
-
-const redis = Redis.fromEnv();
 
 function formatRecordedDate(iso: string): string {
   return new Date(iso).toLocaleString('en-US', {
@@ -71,24 +68,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Note not found' }, { status: 404 });
   }
 
-  const appUrl = process.env['NEXT_PUBLIC_APP_URL'] ?? '';
   const hasPhotos = note.photos && note.photos.length > 0;
 
   let chatPayload: object;
 
   if (hasPhotos) {
-    // Store photos in Redis temporarily for Google Chat to fetch
-    const imageUrls: string[] = [];
-
-    for (const photo of note.photos!) {
-      await redis.set(`field:photo:${photo.id}`, photo.dataUrl, { ex: 3600 });
-      imageUrls.push(`${appUrl}/api/photos/${photo.id}`);
-    }
-
-    // Build widgets: text first, then images with altText
+    // Photos are already public Vercel Blob URLs — use them directly
     const widgets: object[] = [
       { textParagraph: { text: formatNoteForChat(note) } },
-      ...imageUrls.map((url) => ({ image: { imageUrl: url, altText: 'Field photo' } })),
+      ...note.photos!.map((photo) => ({
+        image: { imageUrl: photo.url, altText: 'Field photo' },
+      })),
     ];
 
     // CRITICAL: Use cardsV2 (NOT cards) for Google Chat incoming webhooks
@@ -107,9 +97,7 @@ export async function POST(req: NextRequest) {
       ],
     };
   } else {
-    // Plain text — existing behavior
-    const text = formatNoteForChat(note);
-    chatPayload = { text };
+    chatPayload = { text: formatNoteForChat(note) };
   }
 
   const response = await fetch(webhookUrl, {
@@ -123,7 +111,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Google Chat error: ${error}` }, { status: 502 });
   }
 
-  // Delete the note after successful send
   await deleteNote(noteId);
   return NextResponse.json({ success: true, deleted: true });
 }

@@ -5,6 +5,17 @@ import { useRouter } from 'next/navigation';
 import { Note, CreateNoteInput, NotePhoto } from '@/types/note';
 import { useVoiceRecognition } from '@/hooks/useVoiceRecognition';
 
+interface PhotoEntry {
+  clientId: string;
+  id: string;
+  url: string;
+  previewUrl: string;
+  caption?: string | undefined;
+  createdAt: string;
+  status: 'uploading' | 'done' | 'error';
+  errorMsg?: string | undefined;
+}
+
 interface NoteFormProps {
   initialData?: Partial<Note>;
   noteId?: string;
@@ -18,8 +29,17 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
   const [content, setContent] = useState(initialData?.content ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [photos, setPhotos] = useState<NotePhoto[]>(initialData?.photos ?? []);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoEntries, setPhotoEntries] = useState<PhotoEntry[]>(
+    (initialData?.photos ?? []).map((p): PhotoEntry => ({
+      clientId: p.id,
+      id: p.id,
+      url: p.url,
+      previewUrl: p.url,
+      ...(p.caption !== undefined ? { caption: p.caption } : {}),
+      createdAt: p.createdAt,
+      status: 'done',
+    }))
+  );
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -52,57 +72,84 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
     });
   }, []);
 
+  const doUpload = useCallback(async (clientId: string, previewUrl: string) => {
+    try {
+      const compressed = await (await fetch(previewUrl)).blob();
+      const formData = new FormData();
+      formData.append('image', compressed, 'photo.jpg');
+
+      const res = await fetch('/api/photos/upload', {
+        method: 'POST',
+        headers: {
+          'x-api-key': process.env['NEXT_PUBLIC_FIELD_NOTES_API_KEY'] ?? '',
+        },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? 'Failed to upload photo');
+      }
+
+      const { id, url } = await res.json();
+
+      setPhotoEntries((prev) =>
+        prev.map((e) => (e.clientId === clientId ? { ...e, id, url, status: 'done' } : e))
+      );
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to upload photo';
+      setPhotoEntries((prev) =>
+        prev.map((e) => (e.clientId === clientId ? { ...e, status: 'error', errorMsg } : e))
+      );
+    }
+  }, []);
+
   const handlePhotoCapture = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
+      if (e.target) e.target.value = '';
 
-      setUploadingPhoto(true);
       setError('');
 
-      try {
-        const compressedDataUrl = await compressImage(file);
-
-        const blob = await (await fetch(compressedDataUrl)).blob();
-        const formData = new FormData();
-        formData.append('image', blob, 'photo.jpg');
-
-        const res = await fetch('/api/photos/upload', {
-          method: 'POST',
-          headers: {
-            'x-api-key': process.env['NEXT_PUBLIC_FIELD_NOTES_API_KEY'] ?? '',
-          },
-          body: formData,
-        });
-
-        if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error ?? 'Failed to upload photo');
-        }
-
-        const { id, dataUrl } = await res.json();
-
-        const newPhoto: NotePhoto = {
-          id,
-          dataUrl,
-          createdAt: new Date().toISOString(),
-        };
-
-        setPhotos((prev) => [...prev, newPhoto]);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to upload photo');
-      } finally {
-        setUploadingPhoto(false);
-        if (e.target) {
-          e.target.value = '';
-        }
+      const nonErrorCount = photoEntries.filter((pe) => pe.status !== 'error').length;
+      if (nonErrorCount >= 10) {
+        setError('Maximum 10 photos allowed.');
+        return;
       }
+
+      const previewUrl = await compressImage(file);
+      const clientId = crypto.randomUUID();
+      const createdAt = new Date().toISOString();
+
+      setPhotoEntries((prev) => [
+        ...prev,
+        { clientId, id: '', url: '', previewUrl, createdAt, status: 'uploading' },
+      ]);
+
+      await doUpload(clientId, previewUrl);
     },
-    [compressImage]
+    [compressImage, doUpload, photoEntries]
   );
 
-  const removePhoto = useCallback((photoId: string) => {
-    setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+  const retryUpload = useCallback(
+    async (clientId: string) => {
+      const entry = photoEntries.find((e) => e.clientId === clientId);
+      if (!entry) return;
+      setPhotoEntries((prev) =>
+        prev.map((e): PhotoEntry => {
+          if (e.clientId !== clientId) return e;
+          const { errorMsg: _dropped, ...rest } = e;
+          return { ...rest, status: 'uploading' };
+        })
+      );
+      await doUpload(clientId, entry.previewUrl);
+    },
+    [photoEntries, doUpload]
+  );
+
+  const removePhoto = useCallback((clientId: string) => {
+    setPhotoEntries((prev) => prev.filter((e) => e.clientId !== clientId));
   }, []);
 
   const handleSubmit = useCallback(
@@ -110,8 +157,16 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       e.preventDefault();
       setError('');
 
-      if (!title.trim() && !content.trim() && photos.length === 0) {
+      const donePhotos = photoEntries.filter((pe) => pe.status === 'done');
+      const uploadingPhotos = photoEntries.filter((pe) => pe.status === 'uploading');
+
+      if (!title.trim() && !content.trim() && donePhotos.length === 0 && uploadingPhotos.length === 0) {
         setError('Please fill in at least a title, some notes, or add a photo.');
+        return;
+      }
+
+      if (uploadingPhotos.length > 0) {
+        setError('Please wait for all photos to finish uploading.');
         return;
       }
 
@@ -123,6 +178,13 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       }
 
       setSaving(true);
+
+      const photos: NotePhoto[] = donePhotos.map(({ id, url, caption, createdAt }) => ({
+        id,
+        url,
+        ...(caption ? { caption } : {}),
+        createdAt,
+      }));
 
       const body: CreateNoteInput = {
         ...(title.trim() ? { title: title.trim() } : {}),
@@ -155,8 +217,11 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       router.push(`/notes/${saved.id}`);
       router.refresh();
     },
-    [title, content, photos, isRecording, isTranscribing, stop, isEdit, noteId, router]
+    [title, content, photoEntries, isRecording, isTranscribing, stop, isEdit, noteId, router]
   );
+
+  const donePhotos = photoEntries.filter((e) => e.status === 'done');
+  const hasUploading = photoEntries.some((e) => e.status === 'uploading');
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
@@ -252,7 +317,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
           <button
             type="button"
             onClick={() => cameraInputRef.current?.click()}
-            disabled={uploadingPhoto}
+            disabled={hasUploading}
             className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300 min-h-[48px] text-sm font-semibold transition-colors disabled:opacity-50"
           >
             <CameraIcon />
@@ -261,7 +326,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
           <button
             type="button"
             onClick={() => galleryInputRef.current?.click()}
-            disabled={uploadingPhoto}
+            disabled={hasUploading}
             className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300 min-h-[48px] text-sm font-semibold transition-colors disabled:opacity-50"
           >
             <ImageIcon />
@@ -285,35 +350,57 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
           className="hidden"
         />
 
-        {photos.length > 0 && (
+        {photoEntries.length > 0 && (
           <div className="mt-3 space-y-2">
-            <p className="text-sm font-semibold text-gray-700">
-              {photos.length} {photos.length === 1 ? 'photo' : 'photos'} attached
-            </p>
+            {donePhotos.length > 0 && (
+              <p className="text-sm font-semibold text-gray-700">
+                {donePhotos.length} {donePhotos.length === 1 ? 'photo' : 'photos'} attached
+              </p>
+            )}
             <div className="grid grid-cols-3 gap-2">
-              {photos.map((photo) => (
-                <div key={photo.id} className="relative group">
+              {photoEntries.map((entry) => (
+                <div key={entry.clientId} className="relative group">
                   <img
-                    src={photo.dataUrl}
+                    src={entry.status === 'done' ? entry.url : entry.previewUrl}
                     alt="Field photo"
                     className="w-full h-24 object-cover rounded-lg"
                   />
-                  <button
-                    type="button"
-                    onClick={() => removePhoto(photo.id)}
-                    className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center rounded-full bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                    aria-label="Remove photo"
-                  >
-                    ×
-                  </button>
+
+                  {entry.status === 'uploading' && (
+                    <div className="absolute inset-0 rounded-lg bg-black/50 flex items-center justify-center">
+                      <SpinnerIcon />
+                    </div>
+                  )}
+
+                  {entry.status === 'error' && (
+                    <div className="absolute inset-0 rounded-lg bg-red-900/75 flex flex-col items-center justify-center gap-1 p-1">
+                      <p className="text-white text-xs text-center leading-tight line-clamp-2">
+                        {entry.errorMsg ?? 'Upload failed'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => retryUpload(entry.clientId)}
+                        className="text-xs bg-white text-red-700 px-2 py-0.5 rounded font-semibold"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  )}
+
+                  {entry.status === 'done' && (
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(entry.clientId)}
+                      className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center rounded-full bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label="Remove photo"
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
           </div>
-        )}
-
-        {uploadingPhoto && (
-          <p className="mt-2 text-sm text-gray-600">Uploading photo...</p>
         )}
       </div>
 

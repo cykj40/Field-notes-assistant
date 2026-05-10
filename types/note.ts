@@ -16,7 +16,7 @@ export interface Note {
 
 export interface NotePhoto {
   id: string;
-  dataUrl: string;        // base64 data URL stored directly on the note
+  url: string;            // Vercel Blob public URL (https://)
   caption?: string | undefined;
   createdAt: string;
 }
