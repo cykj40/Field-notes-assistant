@@ -16,17 +16,17 @@
     "cleanup-test-notes": "tsx scripts/cleanup-test-notes.ts"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.0.2",
-    "@upstash/redis": "^1.37.0",
+    "@neondatabase/serverless": "^1.1.0",
+    "@upstash/redis": "^1.38.0",
     "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^2.3.3",
     "@vercel/speed-insights": "^2.0.0",
     "bcryptjs": "^3.0.3",
     "iron-session": "^8.0.4",
-    "next": "^15.5.15",
+    "next": "^15.5.16",
     "next-pwa": "^5.6.0",
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -38,7 +38,7 @@
     "@types/react-dom": "^19",
     "autoprefixer": "^10.5.0",
     "eslint": "^8",
-    "eslint-config-next": "^15.5.15",
+    "eslint-config-next": "^15.5.16",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.21.0",
