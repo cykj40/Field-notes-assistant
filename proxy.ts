@@ -34,7 +34,7 @@ function getSessionOptions(): SessionOptions {
   };
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // Get session from cookies
   const response = NextResponse.next();
   const session = await getIronSession<SessionData>(

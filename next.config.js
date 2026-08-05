@@ -20,6 +20,9 @@ const securityHeaders = [
 ];
 
 module.exports = withPWA({
+  // Next 16 defaults to Turbopack. Declare its configuration explicitly while
+  // retaining the existing plugin-based configuration during this transition.
+  turbopack: {},
   async headers() {
     return [
       {
