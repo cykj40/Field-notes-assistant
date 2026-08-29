@@ -4,6 +4,11 @@ const withPWA = require('next-pwa')({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development',
+  // Background Sync replay for the offline outbox. Injected as-is rather than
+  // built from `worker/` — next-pwa's custom-worker compile crashes in this
+  // repo (the "ajv" override resolves ajv 8 against ajv-keywords@3). See the
+  // header comment in public/outbox-sync.js.
+  importScripts: ['/outbox-sync.js'],
 });
 
 const securityHeaders = [

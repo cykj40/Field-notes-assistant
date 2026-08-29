@@ -8,6 +8,11 @@ const UpdateBanner = dynamic(
   { ssr: false }
 );
 
+const SyncIndicator = dynamic(
+  () => import('@/components/SyncIndicator').then((mod) => ({ default: mod.SyncIndicator })),
+  { ssr: false }
+);
+
 interface ClientLayoutProps {
   children: ReactNode;
 }
@@ -16,6 +21,7 @@ export function ClientLayout({ children }: ClientLayoutProps) {
   return (
     <>
       {children}
+      <SyncIndicator />
       <UpdateBanner />
     </>
   );

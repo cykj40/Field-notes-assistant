@@ -2,6 +2,8 @@ import { NoteTaker } from '@/lib/noteTakers';
 
 export interface Note {
   id: string;
+  /** Client-generated idempotency key — dedupes retried offline creates. */
+  clientId?: string;
   title?: string;
   content?: string;
   location?: string;
@@ -22,6 +24,7 @@ export interface NotePhoto {
 }
 
 export type CreateNoteInput = {
+  clientId?: string;
   title?: string;
   content?: string;
   location?: string;
