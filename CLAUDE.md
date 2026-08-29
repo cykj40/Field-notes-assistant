@@ -98,3 +98,18 @@ After every test run, `tests/global-teardown.ts` automatically deletes any notes
 **Rule:** Every test that creates a note must include `__PLAYWRIGHT_TEST__` somewhere in the note's `title` or `content` field. This is already done in all existing test files. When adding new tests that create notes, always append the sentinel to the content (or title for photo-only notes).
 
 The teardown is idempotent — if no test notes are found, it logs a clean message and exits without error.
+
+**The sentinel does two jobs.** It is defined once in `lib/testSentinel.ts`
+(`TEST_SENTINEL`) and used in three places: the teardown above,
+`npm run cleanup-test-notes`, and a **production-only read filter** in
+`lib/storage.ts`. Because E2E tests run against the same Redis key as
+production, `getNotes()` and `getNotesSummary()` drop sentinel-tagged notes when
+`VERCEL_ENV === 'production'`. Everywhere else — local dev, CI, Vercel previews —
+returns everything unfiltered, which is what lets specs assert on the home list
+right after creating a note. `getNoteById()` is deliberately *not* filtered
+(tests navigate straight to detail pages of notes they just created), so a test
+note is still reachable in production by direct link.
+
+CI also runs `npm run cleanup-test-notes` as an `if: always()` step after the
+Playwright step: a crashed, timed-out, or cancelled run never reaches
+`globalTeardown`, and these notes live in the production Redis key.

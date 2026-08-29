@@ -1,5 +1,6 @@
 import { Redis } from '@upstash/redis';
 import { Note, CreateNoteInput, UpdateNoteInput } from '@/types/note';
+import { TEST_SENTINEL } from '@/lib/testSentinel';
 
 const redis = Redis.fromEnv();
 const NOTES_KEY = 'field:notes';
@@ -13,12 +14,35 @@ async function writeNotes(notes: Note[]): Promise<void> {
   await redis.set(NOTES_KEY, notes);
 }
 
+/**
+ * E2E tests run against the same Redis key as production — there is no separate
+ * test store — so notes tagged with TEST_SENTINEL are hidden from the list
+ * views in production only.
+ *
+ * Every other environment (local dev, CI, Vercel previews, where VERCEL_ENV is
+ * unset or 'preview') reads everything, unchanged. That is what lets specs
+ * assert on the home list right after creating a note.
+ *
+ * Deliberately not applied to getNoteById: tests navigate straight to the
+ * detail page of a note they just created.
+ */
+function hideTestNotes(notes: Note[]): Note[] {
+  if (process.env['VERCEL_ENV'] !== 'production') return notes;
+  return notes.filter(
+    (n) =>
+      !(
+        (n.title ?? '').includes(TEST_SENTINEL) ||
+        (n.content ?? '').includes(TEST_SENTINEL)
+      )
+  );
+}
+
 export async function getNotes(): Promise<Note[]> {
-  return readNotes();
+  return hideTestNotes(await readNotes());
 }
 
 export async function getNotesSummary(): Promise<Note[]> {
-  const notes = await readNotes();
+  const notes = hideTestNotes(await readNotes());
   return notes.map((n) => ({ ...n, photos: [] }));
 }
 
