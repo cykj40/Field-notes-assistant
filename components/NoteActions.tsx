@@ -1,9 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Note } from '@/types/note';
+import {
+  UI_DEADLINE_MS,
+  attemptJob,
+  discardJob,
+  enqueueSendToChat,
+  hasPendingSend,
+  subscribeOutbox,
+} from '@/lib/outbox';
 
 interface NoteActionsProps {
   note: Note;
@@ -11,38 +19,71 @@ interface NoteActionsProps {
 
 export default function NoteActions({ note }: NoteActionsProps) {
   const router = useRouter();
-  const [sending, setSending] = useState(false);
+  const [queued, setQueued] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [sentToChat, setSentToChat] = useState(note.sentToChat);
   const [error, setError] = useState('');
 
-  async function sendToChat() {
-    setError('');
-    setSending(true);
-    const res = await fetch('/api/send-to-chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env['NEXT_PUBLIC_FIELD_NOTES_API_KEY'] ?? '',
-      },
-      body: JSON.stringify({ noteId: note.id }),
+  // A send queued before the user navigated away is still queued when they come back.
+  useEffect(() => {
+    let active = true;
+    void hasPendingSend(note.id).then((pending) => {
+      if (active && pending) setQueued(true);
     });
-    setSending(false);
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error ?? 'Failed to send to Google Chat.');
-    } else {
-      const data = await res.json();
-      if (data.deleted) {
-        // Note was sent and deleted — go back to home
+    return () => {
+      active = false;
+    };
+  }, [note.id]);
+
+  // The queued send may land minutes later, while the user is still on this
+  // page. A successful send deletes the note, so stay off the 404.
+  useEffect(() => {
+    return subscribeOutbox((event) => {
+      if (event.type !== 'job-done' || event.foreground) return;
+      if (event.job.type !== 'send-to-chat' || event.noteId !== note.id) return;
+      router.push('/');
+      router.refresh();
+    });
+  }, [note.id, router]);
+
+  const sendToChat = useCallback(async () => {
+    setError('');
+    // Control comes back before any network call starts.
+    setQueued(true);
+
+    const { job, persisted } = await enqueueSendToChat({
+      noteId: note.id,
+      label: note.title ?? 'Untitled',
+      claimed: true,
+    });
+
+    const outcome = await Promise.race([
+      attemptJob(job, { foreground: true }),
+      new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), UI_DEADLINE_MS)),
+    ]);
+
+    if (outcome === 'timeout') return; // stays queued, retries in the background
+
+    if (outcome.kind === 'success') {
+      const result = outcome.result as { deleted?: boolean } | null;
+      if (result?.deleted) {
+        // Sent and deleted server-side — nothing left to look at.
         router.push('/');
         router.refresh();
       } else {
+        setQueued(false);
         setSentToChat(true);
         router.refresh();
       }
+      return;
     }
-  }
+
+    if (outcome.kind === 'terminal' || !persisted) {
+      await discardJob(job.jobId);
+      setQueued(false);
+      setError(outcome.error);
+    }
+  }, [note.id, note.title, router]);
 
   async function handleDelete() {
     if (!confirm('Delete this note? This cannot be undone.')) return;
@@ -75,10 +116,10 @@ export default function NoteActions({ note }: NoteActionsProps) {
 
         <button
           className="btn-primary"
-          onClick={sendToChat}
-          disabled={sending || sentToChat}
+          onClick={() => void sendToChat()}
+          disabled={queued || sentToChat}
         >
-          {sending ? 'Sending…' : sentToChat ? '✅ Sent to Chat' : '💬 Send to Google Chat'}
+          {queued ? '⏳ Queued to send' : sentToChat ? '✅ Sent to Chat' : '💬 Send to Google Chat'}
         </button>
 
         <button

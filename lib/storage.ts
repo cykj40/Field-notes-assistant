@@ -29,6 +29,14 @@ export async function getNoteById(id: string): Promise<Note | undefined> {
 
 export async function createNote(input: CreateNoteInput): Promise<Note> {
   const notes = await readNotes();
+
+  // Idempotency: a queued note that was retried after its first attempt already
+  // landed must not create a second note.
+  if (input.clientId) {
+    const existing = notes.find((n) => n.clientId === input.clientId);
+    if (existing) return existing;
+  }
+
   const now = new Date().toISOString();
   const newNote: Note = {
     id: crypto.randomUUID(),
@@ -37,6 +45,7 @@ export async function createNote(input: CreateNoteInput): Promise<Note> {
     updatedAt: now,
     sentToChat: false,
     photos: input.photos ?? [],
+    ...(input.clientId ? { clientId: input.clientId } : {}),
     ...(input.title ? { title: input.title } : {}),
     ...(input.content ? { content: input.content } : {}),
     ...(input.location ? { location: input.location } : {}),

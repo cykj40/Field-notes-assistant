@@ -15,6 +15,7 @@ const PhotoSchema = z.object({
 
 const CreateNoteSchema = z
   .object({
+    clientId: z.string().max(100).optional(),
     title: z.string().max(200).optional(),
     content: z.string().optional(),
     location: z.string().optional(),
@@ -56,6 +57,7 @@ export async function POST(req: NextRequest) {
     tags: parsed.data.tags,
     createdBy: session.username,
     photos: parsed.data.photos,
+    ...(parsed.data.clientId !== undefined ? { clientId: parsed.data.clientId } : {}),
     ...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),
     ...(parsed.data.content !== undefined ? { content: parsed.data.content } : {}),
     ...(parsed.data.location !== undefined ? { location: parsed.data.location } : {}),

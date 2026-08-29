@@ -4,6 +4,20 @@ import { useState, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Note, CreateNoteInput, NotePhoto } from '@/types/note';
 import { useVoiceRecognition } from '@/hooks/useVoiceRecognition';
+import { UI_DEADLINE_MS, attemptJob, discardJob, enqueueCreateNote } from '@/lib/outbox';
+
+/**
+ * Resolves once the attempt settles, or once the user has waited long enough —
+ * whichever comes first. The attempt is never aborted: on a slow link the
+ * request usually lands, and killing it would only leave the server to finish
+ * the write while a retry duplicates it.
+ */
+async function raceUiDeadline<T>(promise: Promise<T>, ms: number): Promise<T | 'timeout'> {
+  return Promise.race([
+    promise,
+    new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), ms)),
+  ]);
+}
 
 interface PhotoEntry {
   clientId: string;
@@ -29,6 +43,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
   const [content, setContent] = useState(initialData?.content ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [queuedNotice, setQueuedNotice] = useState(false);
   const [photoEntries, setPhotoEntries] = useState<PhotoEntry[]>(
     (initialData?.photos ?? []).map((p): PhotoEntry => ({
       clientId: p.id,
@@ -42,6 +57,9 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
   );
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  // Held across submits so that re-tapping Create after a failure dedupes
+  // against an earlier attempt that may have landed after all.
+  const clientIdRef = useRef<string | null>(null);
 
   const appendToNotes = useCallback((text: string) => {
     setContent((prev) => (prev ? prev + ' ' + text : text).trim());
@@ -156,6 +174,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
     async (e: React.FormEvent) => {
       e.preventDefault();
       setError('');
+      setQueuedNotice(false);
 
       const donePhotos = photoEntries.filter((pe) => pe.status === 'done');
       const uploadingPhotos = photoEntries.filter((pe) => pe.status === 'uploading');
@@ -186,36 +205,78 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
         createdAt,
       }));
 
-      const body: CreateNoteInput = {
+      clientIdRef.current ??= crypto.randomUUID();
+
+      const body: CreateNoteInput & { clientId: string } = {
+        clientId: clientIdRef.current,
         ...(title.trim() ? { title: title.trim() } : {}),
         ...(content.trim() ? { content: content.trim() } : {}),
         tags: [],
         photos,
       };
 
-      const url = isEdit ? `/api/notes/${noteId}` : '/api/notes';
-      const method = isEdit ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': process.env['NEXT_PUBLIC_FIELD_NOTES_API_KEY'] ?? '',
-        },
-        body: JSON.stringify(body),
+      // Queue durably first, then let the request run as the job's first
+      // attempt. If it lands the job is removed and nobody ever knew; if the
+      // app is killed mid-request the job is still here.
+      const { job, persisted } = await enqueueCreateNote({
+        isEdit,
+        ...(noteId ? { noteId } : {}),
+        payload: body,
+        claimed: true,
       });
+
+      const outcome = await raceUiDeadline(attemptJob(job, { foreground: true }), UI_DEADLINE_MS);
 
       setSaving(false);
 
-      if (!res.ok) {
-        const data = await res.json();
-        setError(typeof data.error === 'string' ? data.error : 'Failed to save note.');
+      if (outcome !== 'timeout' && outcome.kind === 'terminal') {
+        // The server will never accept this payload (e.g. a 400 from Zod), and
+        // the user is still looking at the form — show it rather than queueing.
+        await discardJob(job.jobId);
+        setError(outcome.error);
         return;
       }
 
-      const saved = await res.json();
-      router.push(`/notes/${saved.id}`);
-      router.refresh();
+      if (outcome !== 'timeout' && outcome.kind === 'success') {
+        clientIdRef.current = null;
+        const saved = outcome.result as { id?: string } | null;
+        const savedId = isEdit ? noteId : saved?.id;
+        router.push(savedId ? `/notes/${savedId}` : '/');
+        router.refresh();
+        return;
+      }
+
+      if (!persisted) {
+        // No durable storage (private mode / storage denied) — there is no
+        // queue to fall back on, so keep the old behaviour: show the error and
+        // leave the user's work in the form.
+        setError(
+          outcome === 'timeout'
+            ? 'Still saving — check your connection and try again.'
+            : outcome.error
+        );
+        return;
+      }
+
+      // Timed out or failed — it stays queued and retries in the background.
+      clientIdRef.current = null;
+      setTitle('');
+      setContent('');
+      setPhotoEntries([]);
+      setQueuedNotice(true);
+
+      // Home, not the note page: a detail page rendering pre-edit content reads
+      // as "my edit didn't save", where the list plus the syncing indicator
+      // reads as "not here yet".
+      //
+      // With no connection there is nothing to navigate *to* — every route is
+      // server-rendered, so a push would land the crew on a browser error page.
+      // Staying on the cleared form with the queued notice is the honest
+      // version of the same message.
+      if (typeof navigator === 'undefined' || navigator.onLine) {
+        router.push('/');
+        router.refresh();
+      }
     },
     [title, content, photoEntries, isRecording, isTranscribing, stop, isEdit, noteId, router]
   );
@@ -228,6 +289,15 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       {error && (
         <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">
           {error}
+        </div>
+      )}
+
+      {queuedNotice && (
+        <div
+          className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200"
+          data-testid="queued-notice"
+        >
+          ⏳ Saved — this note will send itself as soon as you have a signal. You can keep working.
         </div>
       )}
 
