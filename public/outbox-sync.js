@@ -2,12 +2,17 @@
 /**
  * Background Sync replay for the offline outbox.
  *
- * This file is imported into the generated service worker via next-pwa's
- * `importScripts` option (see next.config.js). It is hand-written plain JS on
- * purpose: next-pwa's `customWorkerDir` compile cannot run in this repo — the
- * "ajv": ">=6.14.0" override in package.json resolves ajv to 8.x while
- * babel-loader's ajv-keywords@3 requires ajv 6, which crashes the custom-worker
- * webpack pass and fails `next build` outright.
+ * Loaded via a top-level importScripts('/outbox-sync.js') in public/sw.js,
+ * which is itself a hand-committed static file rather than build output —
+ * see that file's header for why next-pwa is no longer involved at all. This
+ * file was originally hand-written plain JS because next-pwa's
+ * `customWorkerDir` compile couldn't run in this repo (an ajv version clash
+ * with babel-loader crashed that webpack pass); it stayed hand-written after
+ * next-pwa was removed entirely, for the same reason sw.js did.
+ *
+ * Must be reachable unauthenticated — proxy.ts excludes it from the auth
+ * matcher — or the importScripts() call in sw.js throws on an HTML redirect
+ * instead of loading JS, and the service worker fails to install.
  *
  * It is deliberately dumb: it replays jobs and deletes the ones that succeed.
  * The full state machine (backoff, attempt counting, terminal classification,
