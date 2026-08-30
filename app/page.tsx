@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getNotesSummary } from '@/lib/storage';
 import NoteCard from '@/components/NoteCard';
+import { LogoutButton } from '@/components/LogoutButton';
 
 
 export const dynamic = 'force-dynamic';
@@ -17,9 +18,12 @@ export default async function HomePage() {
             <h1 className="text-xl font-bold">Field Notes</h1>
             <p className="text-xs text-green-200">{notes.length} note{notes.length !== 1 ? 's' : ''}</p>
           </div>
-          <Link href="/notes/new" className="btn-secondary bg-white text-green-700 hover:bg-green-50">
-            + New Note
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/notes/new" className="btn-secondary bg-white text-green-700 hover:bg-green-50">
+              + New Note
+            </Link>
+            <LogoutButton />
+          </div>
         </div>
       </header>
 

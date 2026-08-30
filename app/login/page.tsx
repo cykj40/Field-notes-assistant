@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { clearCachedPages } from '@/lib/pageCache';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,6 +15,16 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
+
+    try {
+      // /login is reachable even while another supervisor is signed in, so
+      // clear their cached home before allowing an identity change.
+      await clearCachedPages();
+    } catch {
+      setLoading(false);
+      setError('Could not clear saved offline data. Please try again.');
+      return;
+    }
 
     const res = await fetch('/api/auth/login', {
       method: 'POST',

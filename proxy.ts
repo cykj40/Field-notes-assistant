@@ -66,6 +66,7 @@ export const config = {
      *   /favicon.ico          — browser favicon request
      *   /icons/...            — PWA icons
      *   /manifest.json        — PWA manifest
+     *   /offline.html         — install-time service-worker fallback document
      *   /sw.js                — service worker
      *   /outbox-sync.js       — importScripts()'d into sw.js; must be reachable
      *                           unauthenticated or the SW's top-level
@@ -74,6 +75,6 @@ export const config = {
      *   /workbox-*.js         — stale from next-pwa/Workbox; kept in case any
      *                           already-installed client still references one
      */
-    '/((?!login$|api/auth/|api/photos/|_next/|favicon\\.ico$|icons/|manifest\\.json$|sw\\.js$|outbox-sync\\.js$|workbox-).*)',
+    '/((?!login$|api/auth/|api/photos/|_next/|favicon\\.ico$|icons/|manifest\\.json$|offline\\.html$|sw\\.js$|outbox-sync\\.js$|workbox-).*)',
   ],
 };

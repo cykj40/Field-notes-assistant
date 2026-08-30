@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#16a34a" />
+    <title>No connection — Field Notes</title>
+    <script>
+      (function () {
+        let reloading = false;
+        function reload() {
+          if (reloading) return;
+          reloading = true;
+          window.location.reload();
+        }
+        window.addEventListener('online', reload, { once: true });
+        const timer = window.setInterval(async function () {
+          try {
+            const response = await fetch('/manifest.json', { cache: 'no-store' });
+            if (response.ok) {
+              window.clearInterval(timer);
+              reload();
+            }
+          } catch {}
+        }, 5000);
+      })();
+    </script>
+    <style>
+      :root { color-scheme: light; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      body { min-height: 100vh; margin: 0; display: grid; place-items: center; background: #f9fafb; color: #111827; }
+      main { width: min(28rem, calc(100% - 2rem)); padding: 2rem; box-sizing: border-box; text-align: center; background: white; border-radius: 1rem; box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
+      .icon { font-size: 3rem; margin-bottom: 1rem; }
+      h1 { margin: 0; font-size: 1.4rem; }
+      p { margin: 0.75rem 0 0; color: #4b5563; line-height: 1.5; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="icon" aria-hidden="true">📋</div>
+      <h1>No connection yet</h1>
+      <p>Your note is saved and will send automatically once you’re back online.</p>
+    </main>
+  </body>
+</html>

@@ -269,14 +269,16 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       // as "my edit didn't save", where the list plus the syncing indicator
       // reads as "not here yet".
       //
-      // With no connection there is nothing to navigate *to* — every route is
-      // server-rendered, so a push would land the crew on a browser error page.
-      // Staying on the cleared form with the queued notice is the honest
-      // version of the same message.
-      if (typeof navigator === 'undefined' || navigator.onLine) {
-        router.push('/');
-        router.refresh();
+      // enqueueCreateNote() does not return persisted=true until its IndexedDB
+      // write has succeeded. Only after that guard above do we replace this
+      // page, so a hard navigation cannot outrun the durable outbox write.
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        window.location.assign('/');
+        return;
       }
+
+      router.push('/');
+      router.refresh();
     },
     [title, content, photoEntries, isRecording, isTranscribing, stop, isEdit, noteId, router]
   );

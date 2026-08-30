@@ -38,14 +38,64 @@
  *    happen only as a direct consequence of the explicit SKIP_WAITING
  *    message below, never from 'activate' on its own.
  *
- * 3. A fetch listener, even a no-op one — Chrome's automatic install-prompt
- *    heuristic has historically checked for the presence of a fetch handler.
- *    It intentionally never calls event.respondWith(): no caching, so nothing
- *    here can ever serve a stale asset. The browser handles every request
- *    exactly as it would with no service worker at all.
+ * 3. A narrowly-scoped home document fallback. Full, same-origin GET
+ *    navigations to / are network-first and cache their successful response;
+ *    only a network failure may reuse that exact URL. API calls, mutations,
+ *    App Router RSC fetches, assets, and every non-home route pass through
+ *    untouched. /offline.html is the only install-time precache and exists for
+ *    the no-saved-home-yet case — this is deliberately not an app shell.
  */
 
 importScripts('/outbox-sync.js');
+
+const PAGE_CACHE_NAME = 'field-notes-pages-v1';
+const OFFLINE_CACHE_NAME = 'field-notes-offline-v1';
+const OFFLINE_URL = '/offline.html';
+const RECONNECT_SCRIPT = `<script>
+  (function () {
+    let reloading = false;
+    function reload() {
+      if (reloading) return;
+      reloading = true;
+      window.location.reload();
+    }
+    window.addEventListener('online', reload, { once: true });
+    const timer = window.setInterval(async function () {
+      try {
+        const response = await fetch('/manifest.json', { cache: 'no-store' });
+        if (response.ok) {
+          window.clearInterval(timer);
+          reload();
+        }
+      } catch {}
+    }, 5000);
+  })();
+</script>`;
+
+async function withReconnectReload(response) {
+  const html = await response.text();
+  const headers = new Headers(response.headers);
+  headers.delete('content-length');
+  headers.delete('content-encoding');
+
+  const body = html.includes('</head>')
+    ? html.replace('</head>', `${RECONNECT_SCRIPT}</head>`)
+    : `${RECONNECT_SCRIPT}${html}`;
+
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+// Precache only the honest last-resort document. The authenticated home page
+// remains network-first and is cached only after a successful navigation.
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(OFFLINE_CACHE_NAME).then((cache) => cache.add(OFFLINE_URL))
+  );
+});
 
 // clients.claim() lives here, chained after skipWaiting() resolves, rather
 // than in an 'activate' listener — see point 2 above for why 'activate' is
@@ -57,8 +107,50 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Intentionally empty — see point 3 above. Do not add caching logic here
-// without re-checking every point that currently assumes the network is
-// always hit directly (in particular useServiceWorker.ts's periodic
-// registration.update() check for new deploys).
-self.addEventListener('fetch', () => {});
+// registration.update() fetches /sw.js through the browser's service-worker
+// update mechanism, outside this worker's own fetch handler. App Router soft
+// navigations use RSC requests with mode "cors", so this deliberately handles
+// only full document navigations to the home page.
+self.addEventListener('fetch', (event) => {
+  const request = event.request;
+  const url = new URL(request.url);
+
+  if (
+    request.method !== 'GET' ||
+    request.mode !== 'navigate' ||
+    url.origin !== self.location.origin ||
+    url.pathname !== '/'
+  ) {
+    return;
+  }
+
+  event.respondWith(
+    (async () => {
+      try {
+        const response = await fetch(request);
+        const responseUrl = new URL(response.url);
+
+        // Do not cache an auth redirect (or an error response) under the home
+        // URL. Normal online navigations always receive the real response.
+        if (
+          response.ok &&
+          !response.redirected &&
+          responseUrl.origin === self.location.origin &&
+          responseUrl.pathname === '/'
+        ) {
+          const cache = await caches.open(PAGE_CACHE_NAME);
+          await cache.put(request, response.clone());
+        }
+
+        return response;
+      } catch {
+        const pageCache = await caches.open(PAGE_CACHE_NAME);
+        const cachedPage = await pageCache.match(request);
+        if (cachedPage) return withReconnectReload(cachedPage);
+
+        const offlineCache = await caches.open(OFFLINE_CACHE_NAME);
+        return offlineCache.match(OFFLINE_URL);
+      }
+    })()
+  );
+});
