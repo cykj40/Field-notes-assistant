@@ -5,7 +5,7 @@ test.use({ storageState: { cookies: [], origins: [] } });
 
 test.describe('Google Chat Webhook Attribution', () => {
   test.skip(
-    !process.env['GOOGLE_CHAT_WEBHOOK_URL'],
+    !process.env['GOOGLE_CHAT_WEBHOOK_URL_TEST'],
     'Skipping webhook tests - GOOGLE_CHAT_WEBHOOK_URL not configured'
   );
 
@@ -33,7 +33,7 @@ test.describe('Google Chat Webhook Attribution', () => {
     await expect(page.locator('text=Created:')).toBeVisible();
 
     // If webhook URL is configured, test the actual submission
-    if (process.env['GOOGLE_CHAT_WEBHOOK_URL']) {
+    if (process.env['GOOGLE_CHAT_WEBHOOK_URL_TEST']) {
       const sendButton = page.locator('button:has-text("Send to Google Chat")');
       if ((await sendButton.count()) > 0) {
         await sendButton.click();

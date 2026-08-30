@@ -459,7 +459,7 @@ test.describe('Photo Functionality', () => {
 
     test.describe('Send to Google Chat — Photo Notes', () => {
         test.skip(
-            !process.env['GOOGLE_CHAT_WEBHOOK_URL'],
+            !process.env['GOOGLE_CHAT_WEBHOOK_URL_TEST'],
             'Skipping webhook photo tests — GOOGLE_CHAT_WEBHOOK_URL not configured'
         );
 
