@@ -53,7 +53,9 @@ export async function POST(req: NextRequest) {
   const denied = requireApiKey(req);
   if (denied) return denied;
 
-  const webhookUrl = process.env['GOOGLE_CHAT_WEBHOOK_URL'];
+  const webhookUrl = process.env['VERCEL_ENV'] === 'production'
+    ? process.env['GOOGLE_CHAT_WEBHOOK_URL']
+    : process.env['GOOGLE_CHAT_WEBHOOK_URL_TEST'];
   if (!webhookUrl) {
     return NextResponse.json({ error: 'Google Chat webhook not configured' }, { status: 500 });
   }
