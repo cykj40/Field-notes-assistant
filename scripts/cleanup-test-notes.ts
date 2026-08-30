@@ -1,8 +1,7 @@
 import { loadEnvConfig } from '@next/env';
 import { Redis } from '@upstash/redis';
 import { Note } from '@/types/note';
-
-const SENTINEL = '__PLAYWRIGHT_TEST__';
+import { TEST_SENTINEL } from '@/lib/testSentinel';
 
 loadEnvConfig(process.cwd());
 
@@ -20,7 +19,11 @@ async function cleanupTestNotes() {
   }
 
   const kept = notes.filter(
-    (n) => !((n.title ?? '').includes(SENTINEL) || (n.content ?? '').includes(SENTINEL))
+    (n) =>
+      !(
+        (n.title ?? '').includes(TEST_SENTINEL) ||
+        (n.content ?? '').includes(TEST_SENTINEL)
+      )
   );
 
   const deletedCount = notes.length - kept.length;

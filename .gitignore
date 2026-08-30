@@ -38,11 +38,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# PWA generated files
-public/sw.js
+# PWA: public/sw.js and public/outbox-sync.js are committed static files,
+# not build output (next-pwa was removed — see next.config.js). If a client
+# still holds an old Workbox-generated sw.js from before that change, keep
+# ignoring its chunk pattern so a stray local one is never accidentally added.
 public/workbox-*.js
-public/worker-*.js
-public/sw.js.map
 public/workbox-*.js.map
 
 # uploads

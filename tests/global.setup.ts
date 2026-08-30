@@ -63,6 +63,30 @@ async function globalSetup(config: FullConfig) {
     }
   }
 
+  // Warm the dev server's on-demand route compilation. The note form now hands
+  // control back after NEXT_PUBLIC_OUTBOX_TIMEOUT_MS (3s by default) and queues
+  // anything slower — a first-request webpack compile would otherwise push the
+  // first create of every run onto the queued path and fail its redirect
+  // assertion.
+  const warmupContext = await browser.newContext();
+  const warmupPage = await warmupContext.newPage();
+  const apiKey = process.env['NEXT_PUBLIC_FIELD_NOTES_API_KEY'] ?? '';
+  try {
+    await warmupPage.goto(`${baseURL}/login`);
+    await warmupPage.goto(`${baseURL}/notes/new`).catch(() => undefined);
+    await warmupPage.request.get(`${baseURL}/api/notes`, { headers: { 'x-api-key': apiKey } });
+    await warmupPage.request.get(`${baseURL}/api/notes/__warmup__`, { headers: { 'x-api-key': apiKey } });
+    await warmupPage.request.post(`${baseURL}/api/send-to-chat`, {
+      headers: { 'x-api-key': apiKey },
+      data: {},
+    });
+    console.log('✓ Warmed API routes');
+  } catch (error) {
+    console.warn('Warning: route warmup failed (tests may be slower on first request):', error);
+  } finally {
+    await warmupContext.close();
+  }
+
   await browser.close();
 }
 

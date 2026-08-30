@@ -1,8 +1,7 @@
 import { loadEnvConfig } from '@next/env';
 import { Redis } from '@upstash/redis';
 import { Note } from '@/types/note';
-
-const SENTINEL = '__PLAYWRIGHT_TEST__';
+import { TEST_SENTINEL } from '@/lib/testSentinel';
 
 async function globalTeardown() {
   // Load .env.local so Redis credentials are available in this Node process.
@@ -22,7 +21,10 @@ async function globalTeardown() {
 
   const kept = notes.filter(
     (n) =>
-      !((n.title ?? '').includes(SENTINEL) || (n.content ?? '').includes(SENTINEL))
+      !(
+        (n.title ?? '').includes(TEST_SENTINEL) ||
+        (n.content ?? '').includes(TEST_SENTINEL)
+      )
   );
 
   const deletedCount = notes.length - kept.length;
