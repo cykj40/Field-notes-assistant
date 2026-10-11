@@ -336,7 +336,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
               aria-label={isRecording ? 'Stop recording' : 'Start voice dictation'}
               className={[
                 'flex w-full items-center justify-center gap-3 rounded-xl',
-                'min-h-[64px] text-base font-bold transition-all shadow-sm',
+                'min-h-[64px] text-base font-bold transition-all shadow-xs',
                 isRecording
                   ? 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 ring-2 ring-red-300'
                   : isTranscribing
@@ -452,7 +452,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
                       <button
                         type="button"
                         onClick={() => retryUpload(entry.clientId)}
-                        className="text-xs bg-white text-red-700 px-2 py-0.5 rounded font-semibold"
+                        className="text-xs bg-white text-red-700 px-2 py-0.5 rounded-sm font-semibold"
                       >
                         Retry
                       </button>
