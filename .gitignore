@@ -63,3 +63,7 @@ test-results/
 supervisor-pwa-rollout-guide.md
 .env*.local
 CLAUDE.md
+
+plan.md
+
+AGENTS.md
