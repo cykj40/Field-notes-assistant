@@ -2,9 +2,16 @@
 
 import { useState, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Note, CreateNoteInput, NotePhoto } from '@/types/note';
+import { Note, CreateNoteInput, NotePhoto, SourceRole } from '@/types/note';
 import { useVoiceRecognition } from '@/hooks/useVoiceRecognition';
 import { UI_DEADLINE_MS, attemptJob, discardJob, enqueueCreateNote } from '@/lib/outbox';
+
+const SOURCE_ROLE_OPTIONS: ReadonlyArray<{ value: SourceRole; label: string }> = [
+  { value: 'supervisor', label: 'Supervisor' },
+  { value: 'manager', label: 'Manager' },
+  { value: 'project_manager', label: 'PM' },
+  { value: 'worker', label: 'Worker' },
+];
 
 /**
  * Resolves once the attempt settles, or once the user has waited long enough —
@@ -41,6 +48,10 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
 
   const [title, setTitle] = useState(initialData?.title ?? '');
   const [content, setContent] = useState(initialData?.content ?? '');
+  // Optional and unselected by default. Undefined = no role chosen.
+  const [sourceRole, setSourceRole] = useState<SourceRole | undefined>(initialData?.sourceRole);
+  // On edit, a role the note already has can be switched but not cleared.
+  const savedSourceRole = isEdit ? initialData?.sourceRole : undefined;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [queuedNotice, setQueuedNotice] = useState(false);
@@ -213,6 +224,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
         ...(content.trim() ? { content: content.trim() } : {}),
         tags: [],
         photos,
+        ...(sourceRole ? { sourceRole } : {}),
       };
 
       // Queue durably first, then let the request run as the job's first
@@ -262,6 +274,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       clientIdRef.current = null;
       setTitle('');
       setContent('');
+      setSourceRole(undefined);
       setPhotoEntries([]);
       setQueuedNotice(true);
 
@@ -280,7 +293,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       router.push('/');
       router.refresh();
     },
-    [title, content, photoEntries, isRecording, isTranscribing, stop, isEdit, noteId, router]
+    [title, content, sourceRole, photoEntries, isRecording, isTranscribing, stop, isEdit, noteId, router]
   );
 
   const donePhotos = photoEntries.filter((e) => e.status === 'done');
@@ -302,6 +315,42 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
           ⏳ Saved — this note will send itself as soon as you have a signal. You can keep working.
         </div>
       )}
+
+      <div>
+        <span className="label" id="source-role-label">Source</span>
+        <div
+          role="group"
+          aria-labelledby="source-role-label"
+          className="grid grid-cols-4 gap-2"
+        >
+          {SOURCE_ROLE_OPTIONS.map((option) => {
+            const selected = sourceRole === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => {
+                  if (selected) {
+                    // Tapping the selected chip clears it on create only; a saved role stays.
+                    if (!savedSourceRole) setSourceRole(undefined);
+                    return;
+                  }
+                  setSourceRole(option.value);
+                }}
+                className={[
+                  'min-h-[44px] rounded-lg px-2 text-sm font-semibold transition-colors',
+                  selected
+                    ? 'bg-green-600 text-white ring-2 ring-green-700'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300',
+                ].join(' ')}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       <div>
         <label className="label" htmlFor="title">Title</label>
