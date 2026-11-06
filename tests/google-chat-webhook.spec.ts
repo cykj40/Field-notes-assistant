@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { USERS, login } from './auth.setup';
+import { waitForSavedNote } from './helpers';
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
@@ -18,7 +19,7 @@ test.describe('Google Chat Webhook Attribution', () => {
     await page.fill('textarea#content', 'Testing webhook attribution format __PLAYWRIGHT_TEST__');
     await page.click('button[type="submit"]');
 
-    await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+    await waitForSavedNote(page);
 
     // Get the note ID from URL
     const url = page.url();
@@ -37,9 +38,9 @@ test.describe('Google Chat Webhook Attribution', () => {
       const sendButton = page.locator('button:has-text("Send to Google Chat")');
       if ((await sendButton.count()) > 0) {
         await sendButton.click();
-        // After a successful send the note is kept and shown as sent
-        await expect(page.locator('button:has-text("Sent to Chat")')).toBeVisible({ timeout: 10000 });
-        await expect(page).toHaveURL(/\/notes\/[a-f0-9-]+/);
+        // After a successful send we are back on the list with a green toast
+        await expect(page).toHaveURL('/', { timeout: 10000 });
+        await expect(page.getByTestId('flash-toast')).toContainText('Sent to Google Chat');
       }
     }
   });
@@ -54,7 +55,7 @@ test.describe('Google Chat Webhook Attribution', () => {
     await page.fill('textarea#content', 'Content for webhook formatting test __PLAYWRIGHT_TEST__');
     await page.click('button[type="submit"]');
 
-    await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+    await waitForSavedNote(page);
 
     // Verify the note has attribution
     await expect(page.locator('text=Created by: Victor')).toBeVisible();
@@ -83,7 +84,7 @@ test.describe('Google Chat Webhook Attribution', () => {
       await page.fill('textarea#content', `Note from ${user.username} __PLAYWRIGHT_TEST__`);
       await page.click('button[type="submit"]');
 
-      await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+      await waitForSavedNote(page);
 
       // Verify attribution
       await expect(page.locator(`text=Created by: ${user.username}`)).toBeVisible();

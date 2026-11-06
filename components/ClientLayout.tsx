@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { ReactNode } from 'react';
+import { FlashToast } from '@/components/FlashToast';
 
 const UpdateBanner = dynamic(
   () => import('@/components/UpdateBanner').then((mod) => ({ default: mod.UpdateBanner })),
@@ -23,6 +24,7 @@ export function ClientLayout({ children }: ClientLayoutProps) {
       {children}
       <SyncIndicator />
       <UpdateBanner />
+      <FlashToast />
     </>
   );
 }

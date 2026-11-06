@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { USERS, login } from './auth.setup';
+import { waitForSavedNote } from './helpers';
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
@@ -13,7 +14,7 @@ test.describe('Note Authorship and Timestamps', () => {
       await page.fill('textarea#content', 'This note should be attributed to Cyrus __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
-      await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+      await waitForSavedNote(page);
 
       // Check creator name in detail view
       await expect(page.locator('text=Created by: Cyrus')).toBeVisible();
@@ -31,7 +32,7 @@ test.describe('Note Authorship and Timestamps', () => {
       await page.fill('textarea#content', 'This note should be attributed to Brianna __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
-      await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+      await waitForSavedNote(page);
 
       await expect(page.locator('text=Created by: Brianna')).toBeVisible();
       await expect(page.locator('text=Created:')).toBeVisible();
@@ -45,7 +46,7 @@ test.describe('Note Authorship and Timestamps', () => {
       await page.fill('textarea#content', 'This note should be attributed to Victor __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
-      await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+      await waitForSavedNote(page);
 
       await expect(page.locator('text=Created by: Victor')).toBeVisible();
       await expect(page.locator('text=Created:')).toBeVisible();
@@ -59,7 +60,7 @@ test.describe('Note Authorship and Timestamps', () => {
       await page.fill('textarea#content', 'This note should be attributed to Scott __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
-      await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+      await waitForSavedNote(page);
 
       await expect(page.locator('text=Created by: Scott')).toBeVisible();
       await expect(page.locator('text=Created:')).toBeVisible();
@@ -75,7 +76,7 @@ test.describe('Note Authorship and Timestamps', () => {
       await page.fill('textarea#content', 'Testing card view attribution __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
-      await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+      await waitForSavedNote(page);
 
       // Go back to home to see the note card
       await page.goto('/');
@@ -96,7 +97,7 @@ test.describe('Note Authorship and Timestamps', () => {
       await page.fill('textarea#content', 'Testing readable timestamp __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
-      await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+      await waitForSavedNote(page);
 
       // Check that timestamp contains expected date components
       const timestampText = await page.locator('text=Created:').textContent();

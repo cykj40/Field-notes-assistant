@@ -253,7 +253,7 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
         clientIdRef.current = null;
         const saved = outcome.result as { id?: string } | null;
         const savedId = isEdit ? noteId : saved?.id;
-        router.push(savedId ? `/notes/${savedId}` : '/');
+        router.push(savedId ? `/notes/${savedId}/review` : '/');
         router.refresh();
         return;
       }
@@ -526,10 +526,24 @@ export default function NoteForm({ initialData, noteId }: NoteFormProps) {
       </div>
 
       <div className="flex gap-3 pt-2">
-        <button type="submit" className="btn-primary flex-1" disabled={saving} suppressHydrationWarning>
-          {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Note'}
+        <button
+          type="submit"
+          className="btn-primary min-h-[48px] flex-1 justify-center"
+          disabled={saving}
+          suppressHydrationWarning
+        >
+          {saving ? 'Saving…' : 'Send As Is'}
         </button>
-        <button type="button" className="btn-secondary" onClick={() => router.back()} suppressHydrationWarning>
+        {/* Wired in P5.1. Rendered now so the layout matches; no handler on purpose. */}
+        <button
+          type="button"
+          className="btn-secondary min-h-[48px] flex-1 justify-center disabled:cursor-not-allowed disabled:opacity-50"
+          disabled
+          suppressHydrationWarning
+        >
+          Format with AI
+        </button>
+        <button type="button" className="btn-secondary min-h-[48px]" onClick={() => router.back()} suppressHydrationWarning>
           Cancel
         </button>
       </div>

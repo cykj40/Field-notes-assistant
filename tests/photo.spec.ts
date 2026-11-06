@@ -1,5 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { login, USERS } from './auth.setup';
+import { waitForSavedNote } from './helpers';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -194,7 +195,7 @@ test.describe('Photo Functionality', () => {
             await page.fill('input#title', 'Photo Serve Test');
             await page.fill('textarea#content', 'Testing photo public serving __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
-            await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+            await waitForSavedNote(page);
 
             // Find a photo URL on the page (if it renders one from Redis)
             // The note detail page renders data URLs directly from the note object.
@@ -278,7 +279,7 @@ test.describe('Photo Functionality', () => {
             await page.click('button[type="submit"]');
 
             // Should navigate to note detail (not show validation error)
-            await page.waitForURL(/\/notes\/[a-f0-9-]+/, { timeout: 10000 });
+            await waitForSavedNote(page, { timeout: 10000 });
             await expect(page).toHaveURL(/\/notes\/[a-f0-9-]+/);
         });
 
@@ -316,7 +317,7 @@ test.describe('Photo Functionality', () => {
             await page.fill('textarea#content', 'Verifying photo renders on detail page __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
 
-            await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+            await waitForSavedNote(page);
 
             // Detail page should show "Photos (1)" section
             await expect(page.locator('text=📷 Photos (1)')).toBeVisible();
@@ -341,7 +342,7 @@ test.describe('Photo Functionality', () => {
             await page.fill('input#title', 'Multi-Photo Display Test __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
 
-            await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+            await waitForSavedNote(page);
 
             await expect(page.locator('text=📷 Photos (2)')).toBeVisible();
             await expect(page.locator('img[alt="Field photo"]')).toHaveCount(2);
@@ -355,7 +356,7 @@ test.describe('Photo Functionality', () => {
             await page.fill('textarea#content', 'This note has no photos __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
 
-            await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+            await waitForSavedNote(page);
 
             await expect(page.locator('text=📷 Photos')).toHaveCount(0);
         });
@@ -375,7 +376,7 @@ test.describe('Photo Functionality', () => {
 
             await page.fill('input#title', 'Edit Photo Preserve Test __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
-            await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+            await waitForSavedNote(page);
 
             // Navigate to edit
             await page.click('a.btn-secondary:has-text("Edit")');
@@ -386,7 +387,7 @@ test.describe('Photo Functionality', () => {
 
             // Save without changes
             await page.click('button[type="submit"]');
-            await page.waitForURL(/\/notes\/[a-f0-9-]+$/);
+            await waitForSavedNote(page);
 
             // Photo should still be present
             await expect(page.locator('text=📷 Photos (1)')).toBeVisible();
@@ -402,7 +403,7 @@ test.describe('Photo Functionality', () => {
 
             await page.fill('input#title', 'Add More Photos Test __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
-            await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+            await waitForSavedNote(page);
 
             // Edit the note
             await page.click('a.btn-secondary:has-text("Edit")');
@@ -414,7 +415,7 @@ test.describe('Photo Functionality', () => {
             await expect(page.locator('text=/2 photos attached/')).toBeVisible({ timeout: 8000 });
 
             await page.click('button[type="submit"]');
-            await page.waitForURL(/\/notes\/[a-f0-9-]+$/);
+            await waitForSavedNote(page);
 
             await expect(page.locator('text=📷 Photos (2)')).toBeVisible();
         });
@@ -433,7 +434,7 @@ test.describe('Photo Functionality', () => {
 
             await page.fill('input#title', 'Remove Photo Edit Test __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
-            await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+            await waitForSavedNote(page);
 
             // Edit the note
             await page.click('a.btn-secondary:has-text("Edit")');
@@ -447,7 +448,7 @@ test.describe('Photo Functionality', () => {
             await expect(page.locator('text=/1 photo attached/')).toBeVisible({ timeout: 5000 });
 
             await page.click('button[type="submit"]');
-            await page.waitForURL(/\/notes\/[a-f0-9-]+$/);
+            await waitForSavedNote(page);
 
             await expect(page.locator('text=📷 Photos (1)')).toBeVisible();
         });
@@ -473,14 +474,16 @@ test.describe('Photo Functionality', () => {
             await page.fill('input#title', 'Chat Photo Test');
             await page.fill('textarea#content', 'This note has a photo and should go to Google Chat __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
-            await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+            await waitForSavedNote(page);
 
             // Send to Google Chat
             await page.click('button:has-text("Send to Google Chat")');
 
-            // The note is kept and shown as sent
-            await expect(page.locator('button:has-text("Sent to Chat")')).toBeVisible({ timeout: 15000 });
-            await expect(page).toHaveURL(/\/notes\/[a-f0-9-]+/);
+            // Back on the list with a green toast; the note is kept and marked Sent
+            await expect(page).toHaveURL('/', { timeout: 15000 });
+            await expect(page.getByTestId('flash-toast')).toContainText('Sent to Google Chat');
+            await expect(page.locator('a[href^="/notes/"]', { hasText: 'Chat Photo Test' }).first())
+                .toContainText('Sent');
         });
     });
 
@@ -500,7 +503,7 @@ test.describe('Photo Functionality', () => {
             await page.fill('textarea#content', 'Photo note — should use card payload __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
 
-            await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+            await waitForSavedNote(page);
 
             const noteId = page.url().split('/').pop();
             expect(noteId).toBeTruthy();
@@ -539,7 +542,7 @@ test.describe('Photo Functionality', () => {
             await page.fill('textarea#content', 'No photo — should use plain text payload __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
 
-            await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+            await waitForSavedNote(page);
 
             const noteId = page.url().split('/').pop();
             expect(noteId).toBeTruthy();
@@ -611,7 +614,7 @@ test.describe('Photo Functionality', () => {
             await page.fill('input#title', 'Photo Persistence Test __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
 
-            await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+            await waitForSavedNote(page);
 
             const noteId = page.url().split('/').pop();
             expect(noteId).toBeTruthy();
@@ -647,7 +650,7 @@ test.describe('Photo Functionality', () => {
             await page.fill('textarea#content', 'No photos on this one __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
 
-            await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+            await waitForSavedNote(page);
 
             const noteId = page.url().split('/').pop();
             const cookies = await page.context().cookies();
@@ -686,7 +689,7 @@ test.describe('Photo Functionality', () => {
             await page.fill('input#title', 'Console Error Check __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
 
-            await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+            await waitForSavedNote(page);
 
             expect(errors, `Console errors: ${errors.join(', ')}`).toHaveLength(0);
         });
@@ -703,7 +706,7 @@ test.describe('Photo Functionality', () => {
             await page.fill('input#title', 'Detail Console Check __PLAYWRIGHT_TEST__');
             await page.click('button[type="submit"]');
 
-            await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+            await waitForSavedNote(page);
 
             // Now attach error listeners after navigation to check detail page
             page.on('console', (msg) => {

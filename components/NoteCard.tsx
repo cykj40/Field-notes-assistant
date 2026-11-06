@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Note } from '@/types/note';
+import QueuedBadge from '@/components/QueuedBadge';
 
 interface NoteCardProps {
   note: Note;
@@ -32,10 +33,12 @@ export default function NoteCard({ note }: NoteCardProps) {
         <h2 className="font-semibold text-gray-900 line-clamp-1">
           {note.title ?? <span className="italic text-gray-400">Untitled</span>}
         </h2>
-        {note.sentToChat && (
+        {note.sentToChat ? (
           <span className="shrink-0 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
             Sent
           </span>
+        ) : (
+          <QueuedBadge noteId={note.id} />
         )}
       </div>
 

@@ -4,6 +4,33 @@ import { TEST_SENTINEL } from '@/lib/testSentinel';
 
 const redis = Redis.fromEnv();
 const NOTES_KEY = 'field:notes';
+const DEFAULT_RETENTION_DAYS = 60;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** NOTES_RETENTION_DAYS, falling back to 60 if unset or not a positive number. */
+function getRetentionDays(): number {
+  const raw = process.env['NOTES_RETENTION_DAYS'];
+  if (raw === undefined || raw.trim() === '') return DEFAULT_RETENTION_DAYS;
+  const days = Number(raw);
+  return Number.isFinite(days) && days > 0 ? days : DEFAULT_RETENTION_DAYS;
+}
+
+/**
+ * Drops notes whose `sentAt` is older than the retention window. A note with no
+ * `sentAt` (never sent) or an unparseable one is always kept.
+ */
+export function pruneExpiredSentNotes(
+  notes: Note[],
+  retentionDays: number,
+  now: number = Date.now(),
+): Note[] {
+  const cutoff = now - retentionDays * DAY_MS;
+  return notes.filter((n) => {
+    if (!n.sentAt) return true;
+    const sentMs = Date.parse(n.sentAt);
+    return Number.isNaN(sentMs) || sentMs >= cutoff;
+  });
+}
 
 async function readNotes(): Promise<Note[]> {
   const notes = await redis.get<Note[]>(NOTES_KEY);
@@ -78,7 +105,26 @@ export async function createNote(input: CreateNoteInput): Promise<Note> {
     ...(input.createdBy ? { createdBy: input.createdBy } : {}),
   };
   notes.unshift(newNote);
-  await writeNotes(notes);
+
+  // Keep the single notes array from growing forever now that sent notes are
+  // retained. Must never block or fail the create.
+  let toWrite = notes;
+  const retentionDays = getRetentionDays();
+  try {
+    toWrite = pruneExpiredSentNotes(notes, retentionDays);
+    const pruned = notes.length - toWrite.length;
+    if (pruned > 0) {
+      console.log(`[storage] pruned ${pruned} sent note(s) older than ${retentionDays} days`);
+    }
+  } catch (err) {
+    console.error(
+      `[storage] pruning sent notes failed (window ${retentionDays} days); saving without pruning`,
+      err instanceof Error ? err.message : err,
+    );
+    toWrite = notes;
+  }
+
+  await writeNotes(toWrite);
   return newNote;
 }
 

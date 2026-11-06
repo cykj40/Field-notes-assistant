@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { USERS, login, logout } from './auth.setup';
+import { waitForSavedNote } from './helpers';
 
 test.describe('Authentication System', () => {
   test.describe('Login Flow', () => {
@@ -132,7 +133,7 @@ test.describe('Authentication System', () => {
       await page.fill('textarea#content', 'Testing creator attribution __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
-      await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+      await waitForSavedNote(page);
 
       // Check that Cyrus is shown as creator
       await expect(page.locator('text=Created by: Cyrus')).toBeVisible();
@@ -147,7 +148,7 @@ test.describe('Authentication System', () => {
       await page.fill('textarea#content', 'Testing creator attribution __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
-      await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+      await waitForSavedNote(page);
 
       // Check that Brianna is shown as creator
       await expect(page.locator('text=Created by: Brianna')).toBeVisible();
@@ -162,7 +163,7 @@ test.describe('Authentication System', () => {
       await page.fill('textarea#content', 'Testing creator attribution __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
-      await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+      await waitForSavedNote(page);
 
       // Check that Victor is shown as creator
       await expect(page.locator('text=Created by: Victor')).toBeVisible();
@@ -177,7 +178,7 @@ test.describe('Authentication System', () => {
       await page.fill('textarea#content', 'Testing creator attribution __PLAYWRIGHT_TEST__');
       await page.click('button[type="submit"]');
 
-      await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+      await waitForSavedNote(page);
 
       // Check that Scott is shown as creator
       await expect(page.locator('text=Created by: Scott')).toBeVisible();

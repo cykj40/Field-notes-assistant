@@ -1,5 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { login } from './auth.setup';
+import { waitForSavedNote } from './helpers';
 
 interface ConsoleMessage {
   type: string;
@@ -90,7 +91,7 @@ test.describe('Authenticated Routes', () => {
     await page.click('button[type="submit"]');
 
     // Should redirect to note detail page
-    await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+    await waitForSavedNote(page);
 
     // Should see the note content
     await expect(page.locator('text=Test Location')).toBeVisible();
@@ -117,7 +118,7 @@ test.describe('Authenticated Routes', () => {
     await page.fill('input#title', 'Edit Test Location');
     await page.fill('textarea#content', 'Original content __PLAYWRIGHT_TEST__');
     await page.click('button[type="submit"]');
-    await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+    await waitForSavedNote(page);
 
     // Click edit button
     await page.click('a.btn-secondary:has-text("Edit")');
@@ -133,7 +134,7 @@ test.describe('Authenticated Routes', () => {
     await page.click('button[type="submit"]');
 
     // Should redirect back to note detail page
-    await page.waitForURL(/\/notes\/[a-f0-9-]+$/);
+    await waitForSavedNote(page);
 
     // Should see updated content
     await expect(page.locator('text=Updated Location')).toBeVisible();
@@ -160,7 +161,7 @@ test.describe('Authenticated Routes', () => {
     await page.fill('input#title', 'Delete Test Location');
     await page.fill('textarea#content', 'To be deleted __PLAYWRIGHT_TEST__');
     await page.click('button[type="submit"]');
-    await page.waitForURL(/\/notes\/[a-f0-9-]+/);
+    await waitForSavedNote(page);
 
     // Set up dialog handler before clicking delete
     page.once('dialog', (dialog) => {

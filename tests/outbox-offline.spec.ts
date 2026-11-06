@@ -158,26 +158,61 @@ test.describe('Outbox — durability', () => {
 });
 
 test.describe('Outbox — send to Google Chat', () => {
-  test('flips to "Queued to send" immediately when offline', async ({ page, context }) => {
+  test('queues the send and returns to the list when offline', async ({ page, context }) => {
     await login(page, USERS.cyrus);
+    await cacheControlledHome(page);
 
-    await fillNote(page, `Queued send ${Date.now()}`, `Send queued offline ${SENTINEL}`);
+    const title = `Queued send ${Date.now()}`;
+    await fillNote(page, title, `Send queued offline ${SENTINEL}`);
     await page.click('button[type="submit"]');
-    await page.waitForURL(/\/notes\/[a-f0-9-]+/, { timeout: 15000 });
+    await page.waitForURL(/\/notes\/[a-f0-9-]+\/review$/, { timeout: 15000 });
 
     // Offline for the whole send so no message reaches the real webhook.
     await context.setOffline(true);
-    await page.click('button:has-text("Send to Google Chat")');
+    await page.click('button:has-text("Share to Google Chat")');
 
-    await expect(page.locator('button:has-text("Queued to send")')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('button:has-text("Queued to send")')).toBeDisabled();
-    await expect(page.getByTestId('sync-indicator')).toBeVisible({ timeout: 10000 });
+    // The cached home may not hydrate offline in dev, so the toast itself is
+    // covered by the next test; here the hand-off message must be waiting for it.
+    await expect(page).toHaveURL('/');
+    await expect.poll(async () => (await storedJobs(page)).some((job) => job.label.includes(title))).toBe(true);
+    expect(await page.evaluate(() => sessionStorage.getItem('field-notes-flash'))).toBe('queued');
 
-    // Discard it rather than letting it fire at the real Chat space on reconnect.
+    // Drop the queued job while still offline so it can never fire on reconnect.
+    // (Dev-mode chunks aren't precached, so the cached home may not hydrate offline.)
+    await page.evaluate(async () => new Promise<void>((resolve, reject) => {
+      const open = indexedDB.open('field-notes-outbox', 2);
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const request = open.result.transaction('jobs', 'readwrite').objectStore('jobs').clear();
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve();
+      };
+    }));
+    expect(await storedJobs(page)).toHaveLength(0);
+    await context.setOffline(false);
+  });
+
+  test('shows a yellow toast and a Queued badge when the send cannot reach the server', async ({ page }) => {
+    await login(page, USERS.cyrus);
+
+    const title = `Queued badge ${Date.now()}`;
+    await fillNote(page, title, `Send fails to connect ${SENTINEL}`);
+    await page.click('button[type="submit"]');
+    await page.waitForURL(/\/notes\/[a-f0-9-]+\/review$/, { timeout: 15000 });
+
+    // Online, but the request never connects — nothing reaches the webhook.
+    await page.route('**/api/send-to-chat', (route) => route.abort());
+    await page.click('button:has-text("Share to Google Chat")');
+
+    await expect(page).toHaveURL('/');
+    await expect(page.getByTestId('flash-toast')).toContainText("Queued. Will send when you're back online.");
+    const card = page.locator('a[href^="/notes/"]', { hasText: title });
+    await expect(card.getByTestId('queued-badge')).toBeVisible({ timeout: 10000 });
+
+    // Discard it so it never fires on reconnect.
     await page.getByTestId('sync-indicator').click();
     await page.getByTestId('sync-panel').locator('button:has-text("Discard")').first().click();
     await expect(page.getByTestId('sync-indicator')).toHaveCount(0, { timeout: 5000 });
-
-    await context.setOffline(false);
+    await expect(card.getByTestId('queued-badge')).toHaveCount(0);
   });
 });
