@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit --pretty",
     "test": "playwright test",
     "test:e2e": "playwright test",
@@ -36,8 +36,8 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "eslint": "^8",
-    "eslint-config-next": "^15.5.28",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.4.5",
     "postcss": "^8",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
@@ -50,6 +50,12 @@
     "minimatch": "9.0.7",
     "serialize-javascript": ">=7.0.3",
     "ajv": ">=6.14.0",
+    "eslint": {
+      "ajv": "^6.14.0"
+    },
+    "@eslint/eslintrc": {
+      "ajv": "^6.14.0"
+    },
     "picomatch": ">=4.0.4"
   }
 }

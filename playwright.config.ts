@@ -3,6 +3,19 @@ import { loadEnvConfig } from '@next/env';
 
 loadEnvConfig(process.cwd());
 
+// Safety guard: E2E runs must never post to the supervisors' real Google Chat.
+// The app's send route reads GOOGLE_CHAT_WEBHOOK_URL, so the dev server started
+// below is handed the TEST webhook under that name. Fail loudly at config load
+// if no test webhook is configured rather than silently falling back.
+const testWebhookUrl = process.env['GOOGLE_CHAT_WEBHOOK_URL_TEST'];
+if (!testWebhookUrl) {
+  throw new Error(
+    'GOOGLE_CHAT_WEBHOOK_URL_TEST is not set. Playwright refuses to run without it so ' +
+      'e2e tests can never post to the production Google Chat space. Set it in ' +
+      '.env.local (or CI secrets) to a test space webhook.'
+  );
+}
+
 const webServer = process.env['PLAYWRIGHT_SKIP_WEBSERVER']
   ? undefined
   : {
@@ -10,6 +23,9 @@ const webServer = process.env['PLAYWRIGHT_SKIP_WEBSERVER']
       url: 'http://localhost:3000',
       reuseExistingServer: !process.env['CI'],
       timeout: 120000,
+      env: {
+        GOOGLE_CHAT_WEBHOOK_URL: testWebhookUrl,
+      },
     };
 
 /**
