@@ -37,8 +37,9 @@ test.describe('Google Chat Webhook Attribution', () => {
       const sendButton = page.locator('button:has-text("Send to Google Chat")');
       if ((await sendButton.count()) > 0) {
         await sendButton.click();
-        // After a successful send the note is deleted and the user is redirected to home
-        await expect(page).toHaveURL('/', { timeout: 10000 });
+        // After a successful send the note is kept and shown as sent
+        await expect(page.locator('button:has-text("Sent to Chat")')).toBeVisible({ timeout: 10000 });
+        await expect(page).toHaveURL(/\/notes\/[a-f0-9-]+/);
       }
     }
   });

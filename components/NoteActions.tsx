@@ -36,12 +36,13 @@ export default function NoteActions({ note }: NoteActionsProps) {
   }, [note.id]);
 
   // The queued send may land minutes later, while the user is still on this
-  // page. A successful send deletes the note, so stay off the 404.
+  // page. The note outlives the send, so show it as sent in place.
   useEffect(() => {
     return subscribeOutbox((event) => {
       if (event.type !== 'job-done' || event.foreground) return;
       if (event.job.type !== 'send-to-chat' || event.noteId !== note.id) return;
-      router.push('/');
+      setQueued(false);
+      setSentToChat(true);
       router.refresh();
     });
   }, [note.id, router]);
@@ -67,7 +68,7 @@ export default function NoteActions({ note }: NoteActionsProps) {
     if (outcome.kind === 'success') {
       const result = outcome.result as { deleted?: boolean } | null;
       if (result?.deleted) {
-        // Sent and deleted server-side — nothing left to look at.
+        // The note no longer exists (the outbox maps a 404 on send to this) — nothing left to look at.
         router.push('/');
         router.refresh();
       } else {

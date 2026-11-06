@@ -7,6 +7,8 @@ import { NoteTaker } from '@/lib/noteTakers';
 export const SOURCE_ROLES = ['supervisor', 'manager', 'project_manager', 'worker'] as const;
 export type SourceRole = (typeof SOURCE_ROLES)[number];
 
+export type SentBody = 'raw' | 'client';
+
 /** One answered clarify question from the AI path. */
 export interface ClarifyAnswer {
   id: string;
@@ -42,6 +44,10 @@ export interface Note {
   createdAt: string;
   updatedAt: string;
   sentToChat: boolean;
+  /** ISO time the note was posted to Chat. Set only after a successful webhook response. */
+  sentAt?: string;
+  /** Which body was posted: the raw `content`, or the AI-formatted `clientNotes`. */
+  sentBody?: SentBody;
   photos?: NotePhoto[];
   /** AI-formatted output. Never overwrites `content`. */
   clientNotes?: string;

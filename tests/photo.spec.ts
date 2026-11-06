@@ -463,7 +463,7 @@ test.describe('Photo Functionality', () => {
             'Skipping webhook photo tests — GOOGLE_CHAT_WEBHOOK_URL not configured'
         );
 
-        test('should send note with photos to Google Chat and delete note', async ({ page }) => {
+        test('should send note with photos to Google Chat and keep it marked as sent', async ({ page }) => {
             await login(page, USERS.cyrus);
             await page.goto('/notes/new');
 
@@ -478,9 +478,9 @@ test.describe('Photo Functionality', () => {
             // Send to Google Chat
             await page.click('button:has-text("Send to Google Chat")');
 
-            // Should navigate back to home after send+delete
-            await page.waitForURL('/', { timeout: 15000 });
-            await expect(page.locator('h1')).toContainText('Field Notes');
+            // The note is kept and shown as sent
+            await expect(page.locator('button:has-text("Sent to Chat")')).toBeVisible({ timeout: 15000 });
+            await expect(page).toHaveURL(/\/notes\/[a-f0-9-]+/);
         });
     });
 
@@ -526,7 +526,8 @@ test.describe('Photo Functionality', () => {
             if (response.status() === 200) {
                 const body = await response.json();
                 expect(body.success).toBe(true);
-                expect(body.deleted).toBe(true);
+                expect(body.sentAt).toBeTruthy();
+                expect(body.deleted).toBeUndefined();
             }
         });
 

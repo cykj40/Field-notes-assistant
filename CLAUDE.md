@@ -88,9 +88,13 @@ link or a dead one costs the user nothing.
      navigate to without a connection.
 
 **Send to chat (`NoteActions.tsx`):** the button flips to `⏳ Queued to send`
-before any network call. The send route deletes the note on success, so a
-**404 on retry is treated as success** — it means an earlier attempt landed and
-only the response was lost.
+before any network call. The send route keeps the note on success and marks it
+(`sentToChat`, `sentAt`, `sentBody`) only after the webhook answers OK. A retry
+for an already-sent note returns `alreadySent` without posting again, so a lost
+response never produces a duplicate message. If posting succeeded but recording
+it failed, the route answers 409 (terminal for the outbox) rather than a 5xx that
+would be retried. A **404 on retry is still treated as success** — the note is
+gone, so there is nothing left to send.
 
 **Idempotency:** creates carry a client-generated `clientId`; `createNote` in
 `lib/storage.ts` returns the existing note if it sees that key again. This is

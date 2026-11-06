@@ -1,5 +1,5 @@
 import { Redis } from '@upstash/redis';
-import { Note, CreateNoteInput, UpdateNoteInput, ClientNotesMeta } from '@/types/note';
+import { Note, CreateNoteInput, UpdateNoteInput, ClientNotesMeta, SentBody } from '@/types/note';
 import { TEST_SENTINEL } from '@/lib/testSentinel';
 
 const redis = Redis.fromEnv();
@@ -148,6 +148,34 @@ export async function updateClientNotes(
   notes[idx] = updatedNote;
   await writeNotes(notes);
   return updatedNote;
+}
+
+/**
+ * Marks a note as posted to Chat. Call ONLY after the webhook answered OK.
+ * Writes just sentToChat, sentAt and sentBody; `content` and every other field
+ * (including updatedAt, which tracks edits) stay as they were. The first send
+ * wins: an already-sent note is returned untouched. Returns null if the note
+ * no longer exists.
+ */
+export async function markNoteSent(id: string, sentBody: SentBody): Promise<Note | null> {
+  const notes = await readNotes();
+  const idx = notes.findIndex((n) => n.id === id);
+  if (idx === -1) return null;
+  const existingNote = notes[idx];
+  if (!existingNote) return null;
+  if (existingNote.sentAt) return existingNote;
+
+  const sentNote: Note = {
+    ...existingNote,
+    sentToChat: true,
+    sentAt: new Date().toISOString(),
+    sentBody,
+  };
+  assertContentUnchanged(id, existingNote.content, sentNote.content);
+
+  notes[idx] = sentNote;
+  await writeNotes(notes);
+  return sentNote;
 }
 
 export async function deleteNote(id: string): Promise<boolean> {

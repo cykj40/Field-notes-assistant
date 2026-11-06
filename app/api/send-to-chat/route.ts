@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getNoteById, deleteNote } from '@/lib/storage';
+import { getNoteById, markNoteSent } from '@/lib/storage';
 import { requireApiKey } from '@/lib/apiKey';
+import { Note } from '@/types/note';
 
 function formatRecordedDate(iso: string): string {
   return new Date(iso).toLocaleString('en-US', {
@@ -68,6 +69,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Note not found' }, { status: 404 });
   }
 
+  // The note outlives the send, so a retried request (e.g. the first response
+  // was lost) must not post to Chat a second time.
+  if (note.sentAt) {
+    return NextResponse.json({ success: true, alreadySent: true, sentAt: note.sentAt });
+  }
+
   const hasPhotos = note.photos && note.photos.length > 0;
 
   let chatPayload: object;
@@ -111,6 +118,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Google Chat error: ${error}` }, { status: 502 });
   }
 
-  await deleteNote(noteId);
-  return NextResponse.json({ success: true, deleted: true });
+  // Marked sent only now, after the webhook answered OK. This route always
+  // posts the raw note body; the AI path will pass 'client' when it lands.
+  let sent: Note | null;
+  try {
+    sent = await markNoteSent(noteId, 'raw');
+  } catch (err) {
+    console.error(`[send-to-chat] Posted note ${noteId} to Chat but failed to record it as sent:`, err);
+    // 409 is terminal for the outbox: a 5xx would be retried and post a duplicate.
+    return NextResponse.json(
+      { error: 'The note was posted to Google Chat but could not be marked as sent. Do not send it again.' },
+      { status: 409 }
+    );
+  }
+
+  if (!sent) {
+    console.warn(`[send-to-chat] Note ${noteId} was posted to Chat but no longer exists to mark as sent.`);
+    return NextResponse.json({ success: true, noteMissing: true });
+  }
+
+  return NextResponse.json({ success: true, sentAt: sent.sentAt, sentBody: sent.sentBody });
 }
