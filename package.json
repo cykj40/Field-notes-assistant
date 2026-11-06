@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit --pretty",
     "test": "playwright test",
     "test:e2e": "playwright test",
+    "test:unit": "vitest run",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
     "seed-users": "tsx scripts/seed-users.ts",
@@ -39,7 +40,7 @@
     "@tailwindcss/postcss": "^4.3.3",
     "@types/bcryptjs": "^2.4.6",
     "@types/cookie": "^0.6.0",
-    "@types/node": "^20",
+    "@types/node": "^22.20.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9.39.5",
@@ -48,6 +49,7 @@
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
     "typescript": "^5",
+    "vitest": "5.0.5",
     "wait-on": "^8.0.5"
   },
   "overrides": {
