@@ -1,5 +1,6 @@
 import { test, expect, Page, BrowserContext } from '@playwright/test';
 import { login, USERS } from './auth.setup';
+import { cacheControlledHome, expectQueuedHandoff, storedJobs } from './helpers';
 
 /**
  * Outbox coverage: note creation and "Send to Google Chat" must hand control
@@ -17,44 +18,12 @@ async function fillNote(page: Page, title: string, content: string) {
   await page.fill('textarea#content', content);
 }
 
-async function cacheControlledHome(page: Page) {
-  await page.goto('/');
-  await page.evaluate(async () => {
-    await navigator.serviceWorker.ready;
-  });
-  // A first install intentionally does not claim the already-open page. The
-  // reload is controlled and therefore populates the home document cache.
-  await page.reload();
-  await expect(page.locator('h1')).toContainText('Field Notes');
-  await expect.poll(() => page.evaluate(async () => {
-    const cache = await caches.open('field-notes-pages-v1');
-    return Boolean(await cache.match('/'));
-  })).toBe(true);
-}
-
 /** Number of jobs the indicator says are waiting, or 0 when it is hidden. */
 async function pendingCount(page: Page): Promise<number> {
   const indicator = page.getByTestId('sync-indicator');
   if ((await indicator.count()) === 0) return 0;
   const text = (await indicator.textContent()) ?? '';
   return Number(text.match(/(\d+)/)?.[1] ?? 0);
-}
-
-async function storedJobs(page: Page): Promise<Array<{ jobId: string; label: string }>> {
-  return page.evaluate(async () => new Promise((resolve, reject) => {
-    const open = indexedDB.open('field-notes-outbox', 2);
-    open.onerror = () => reject(open.error);
-    open.onsuccess = () => {
-      const request = open.result.transaction('jobs', 'readonly').objectStore('jobs').getAll();
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(
-        request.result.map((job: { jobId: string; label: string }) => ({
-          jobId: job.jobId,
-          label: job.label,
-        }))
-      );
-    };
-  }));
 }
 
 test.describe('Outbox — note creation', () => {
@@ -175,7 +144,7 @@ test.describe('Outbox — send to Google Chat', () => {
     // covered by the next test; here the hand-off message must be waiting for it.
     await expect(page).toHaveURL('/');
     await expect.poll(async () => (await storedJobs(page)).some((job) => job.label.includes(title))).toBe(true);
-    expect(await page.evaluate(() => sessionStorage.getItem('field-notes-flash'))).toBe('queued');
+    await expectQueuedHandoff(page);
 
     // Drop the queued job while still offline so it can never fire on reconnect.
     // (Dev-mode chunks aren't precached, so the cached home may not hydrate offline.)

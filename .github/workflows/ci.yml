@@ -19,6 +19,7 @@ jobs:
     env:
       CI: true
       PORT: 3000
+      CHAT_CAPTURE_FILE: /tmp/field-notes-chat-capture.jsonl
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
       UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
@@ -61,6 +62,8 @@ jobs:
       - name: Start application
         env:
           GOOGLE_CHAT_WEBHOOK_URL: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL_TEST }}
+          # Records the body of each Chat post so specs can assert on it.
+          NODE_OPTIONS: --require ${{ github.workspace }}/tests/support/capture-chat-webhook.js
         run: npm run start &
 
       - name: Wait for application

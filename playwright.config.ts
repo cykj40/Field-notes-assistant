@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 import { loadEnvConfig } from '@next/env';
+import * as os from 'os';
+import * as path from 'path';
 
 loadEnvConfig(process.cwd());
 
@@ -16,6 +18,13 @@ if (!testWebhookUrl) {
   );
 }
 
+// The app server posts to Chat, so specs can't intercept it in the browser. A
+// tiny preload records the body of each webhook post to this file (see
+// tests/support/capture-chat-webhook.js). CI starts the server itself and sets
+// the same two variables on that step.
+process.env['CHAT_CAPTURE_FILE'] ??= path.join(os.tmpdir(), 'field-notes-chat-capture.jsonl');
+const chatCapturePreload = path.join(__dirname, 'tests', 'support', 'capture-chat-webhook.js');
+
 const webServer = process.env['PLAYWRIGHT_SKIP_WEBSERVER']
   ? undefined
   : {
@@ -27,6 +36,8 @@ const webServer = process.env['PLAYWRIGHT_SKIP_WEBSERVER']
       timeout: 120000,
       env: {
         GOOGLE_CHAT_WEBHOOK_URL: testWebhookUrl,
+        CHAT_CAPTURE_FILE: process.env['CHAT_CAPTURE_FILE'],
+        NODE_OPTIONS: `${process.env['NODE_OPTIONS'] ?? ''} --require ${chatCapturePreload}`.trim(),
       },
     };
 
