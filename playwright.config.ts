@@ -21,7 +21,9 @@ const webServer = process.env['PLAYWRIGHT_SKIP_WEBSERVER']
   : {
       command: 'npm run dev',
       url: 'http://localhost:3000',
-      reuseExistingServer: !process.env['CI'],
+      // Never reuse a running server: an already-running dev server may have been
+      // started with the production webhook, which would bypass the guard above.
+      reuseExistingServer: false,
       timeout: 120000,
       env: {
         GOOGLE_CHAT_WEBHOOK_URL: testWebhookUrl,
