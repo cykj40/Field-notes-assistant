@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getNotes, createNote } from '@/lib/storage';
 import { requireApiKey } from '@/lib/apiKey';
 import { NOTE_TAKERS } from '@/lib/noteTakers';
-import { CreateNoteInput } from '@/types/note';
+import { CreateNoteInput, SOURCE_ROLES } from '@/types/note';
 import { getSession } from '@/lib/auth';
 
 const PhotoSchema = z.object({
@@ -21,6 +21,7 @@ const CreateNoteSchema = z
     location: z.string().optional(),
     tags: z.array(z.string()).default([]),
     noteTaker: z.enum(NOTE_TAKERS).optional(),
+    sourceRole: z.enum(SOURCE_ROLES).optional(),
     photos: z.array(PhotoSchema).default([]),
   })
   .refine(
@@ -62,6 +63,7 @@ export async function POST(req: NextRequest) {
     ...(parsed.data.content !== undefined ? { content: parsed.data.content } : {}),
     ...(parsed.data.location !== undefined ? { location: parsed.data.location } : {}),
     ...(parsed.data.noteTaker !== undefined ? { noteTaker: parsed.data.noteTaker } : {}),
+    ...(parsed.data.sourceRole !== undefined ? { sourceRole: parsed.data.sourceRole } : {}),
   };
 
   const note = await createNote(input);

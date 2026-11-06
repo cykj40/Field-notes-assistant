@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getNoteById, updateNote, deleteNote } from '@/lib/storage';
 import { requireApiKey } from '@/lib/apiKey';
 import { NOTE_TAKERS } from '@/lib/noteTakers';
-import { UpdateNoteInput } from '@/types/note';
+import { UpdateNoteInput, SOURCE_ROLES } from '@/types/note';
 
 const PhotoSchema = z.object({
   id: z.string(),
@@ -18,6 +18,7 @@ const UpdateNoteSchema = z.object({
   location: z.string().optional(),
   tags: z.array(z.string()).optional(),
   noteTaker: z.enum(NOTE_TAKERS).optional(),
+  sourceRole: z.enum(SOURCE_ROLES).optional(),
   sentToChat: z.boolean().optional(),
   photos: z.array(PhotoSchema).optional(),
 });
@@ -50,6 +51,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     ...(parsed.data.location !== undefined ? { location: parsed.data.location } : {}),
     ...(parsed.data.tags !== undefined ? { tags: parsed.data.tags } : {}),
     ...(parsed.data.noteTaker !== undefined ? { noteTaker: parsed.data.noteTaker } : {}),
+    ...(parsed.data.sourceRole !== undefined ? { sourceRole: parsed.data.sourceRole } : {}),
     ...(parsed.data.sentToChat !== undefined ? { sentToChat: parsed.data.sentToChat } : {}),
     ...(parsed.data.photos !== undefined ? { photos: parsed.data.photos } : {}),
   };
